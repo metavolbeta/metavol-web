@@ -2,6 +2,8 @@
 
 import { ref } from 'vue';
 
+const radioGroup = ref("");
+
 const props = defineProps(["sortVisible"]);
 const emit = defineEmits([
   "sort",
@@ -34,7 +36,7 @@ const presetClicked = (e:string) => emit("presetSelected", e);
 
   <div style="display:flex; flex-flow: column;">
 
-    <v-file-input label="Open file"></v-file-input>
+    <!-- <v-file-input label="Open file"></v-file-input>
 
     <button @click="openFileClicked">Open File</button>
     <input ref="openFile" type="file" class="hidden-input" @change="dicom_open">
@@ -42,7 +44,7 @@ const presetClicked = (e:string) => emit("presetSelected", e);
     <button @click="openDirClicked">Open Folder</button>
     <input ref="openDir" type="file" class="hidden-input" @change="dicom_dir_open" webkitdirectory multiple>
 
-    <button v-if="props.sortVisible==1" @click="sortClicked">Sort</button>
+    <button v-if="props.sortVisible==1" @click="sortClicked">Sort</button> -->
 
     <!-- <button @click="openSampleClicked">Open Sample</button> -->
 
@@ -51,46 +53,15 @@ const presetClicked = (e:string) => emit("presetSelected", e);
   <div  style="display:flex; flex-flow: column; text-align: left;">
     <label>Left button</label>
 
-    <v-container
-    class="px-0"
-    fluid
-  >
-    <v-radio-group v-model="radioGroup">
-      <v-radio
-        v-for="n in 3"
-        :key="n"
-        :label="`Radio ${n}`"
-        :value="n"
-      ></v-radio>
+    <v-radio-group v-model="leftButtonFunction" @change="leftButtonFunctionChanged">
+      <v-radio key="none" label="None" value="none" />
+      <v-radio key="window" label="Window" value="window" />
+      <v-radio key="pan" label="Pan" value="pan" />
+      <v-radio key="zoom" label="Zoom" value="zoom" />
+      <v-radio key="page" label="Page" value="page" />
     </v-radio-group>
-  </v-container>
 
-
-    <div>
-      <input type="radio" id = "radio_none" value = "none" v-model="leftButtonFunction" @change="leftButtonFunctionChanged"/>
-      <label for="radio_none">None</label>
     </div>
-
-    <div>
-      <input type="radio" id = "radio_windowing" value = "window" v-model="leftButtonFunction" @change="leftButtonFunctionChanged"/>
-      <label for="radio_windowing">Window</label>
-    </div>
-
-    <div>
-      <input type="radio" id = "radio_pan" value = "pan" v-model="leftButtonFunction" @change="leftButtonFunctionChanged"/>
-      <label for="radio_pan">Pan</label>
-    </div>
-
-    <div>
-      <input type="radio" id = "radio_zoom" value = "zoom" v-model="leftButtonFunction" @change="leftButtonFunctionChanged"/>
-      <label for="radio_zoom">Zoom</label>
-    </div>
-
-    <div>
-      <input type="radio" id = "radio_paging" value = "page" v-model="leftButtonFunction" @change="leftButtonFunctionChanged"/>
-      <label for="radio_paging">Page</label>
-    </div>
-  </div>
 
   <br>
   <label>Preset</label>
