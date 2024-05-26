@@ -4,8 +4,6 @@
 
 
 const generateRainbow = () => {
-
-    debugger;
     
     const ss = rainbow_text.split('\n');
     let lst = [];

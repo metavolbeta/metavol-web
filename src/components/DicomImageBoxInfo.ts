@@ -15,7 +15,7 @@ export type DicomImageBoxInfo = ImageBoxInfoBase &  {
     imageNumberOfDicomTag: number | null,
     centerX:number,
     centerY:number
-    zoom: number,
+    zoom: number | null,
 }
 
 export type DicomVolumeImageBoxInfo = ImageBoxInfoBase & {
@@ -45,7 +45,7 @@ export const defaultInfo = (i: number) => {
         myWW:null,
         centerX:0,
         centerY:0,
-        zoom:1,
+        zoom:null,
         clut:0,
     };
     // centerの意味は、画面上のcanvasの中心（canvasが800x800なら(400,400)）が、DICOMファイル上に対応する画素の座標（一般的には256,256）からのオフセットである。

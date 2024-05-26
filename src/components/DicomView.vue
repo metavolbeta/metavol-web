@@ -23,6 +23,7 @@ import * as DecompressJpegLossless from "./decompressJpegLossless";
 import { DicomVolume } from "./DicomVolume";
 import * as THREE from 'three';
 import {cluts} from './Clut.ts';
+import { decode } from 'fast-png';
 
 interface MyDataSet extends DataSet {
   decompressed: ArrayBuffer;
@@ -167,7 +168,8 @@ const mouseMove = (e: MouseEvent) => {
         if (isDicomImageBoxInfo(id)){
           let r = 1.02;
           if (e.movementY > 0) r = 1 / r;
-          info(i).zoom *= r;
+          const zoom = info(i).zoom ?? 1;
+          info(i).zoom = zoom * r;
           showImage(i);
         }else{
           let r = Math.pow(1.02, e.movementY);
@@ -184,7 +186,7 @@ const mouseMove = (e: MouseEvent) => {
     if (e.buttons == 1) {
       doOneOrAll(id, (i:number) => {
         if (isDicomImageBoxInfo(id)){
-          const zoom = info(i).zoom;
+          const zoom = info(i).zoom!;
           info(i).centerX -= e.movementX / zoom;
           info(i).centerY -= e.movementY / zoom;
         }else{
@@ -272,9 +274,11 @@ const openSample = async () => {
 const doSort = () => {
   let serieses:string[] = [];
   for (const d of unsortedDicomDataSetList){
+
     const suid = d.string("x0020000e") ?? ""; // series instance uid
     const sd = d.string("x0008103e") ?? ""; // series description
     const name = suid+sd;
+
     let id = serieses.indexOf(name!);
     if (id === -1){
       id = serieses.length;
@@ -284,6 +288,7 @@ const doSort = () => {
       dicomDataSetList[id] = [];
     }
     dicomDataSetList[id].push(d);
+
   }
   unsortedDicomDataSetList=[];
 
@@ -354,8 +359,8 @@ const showImage = (i:number) => {
         // const studyInstanceUid = dataSet.string('x0020000d');
         // const patientid = dataSet.string('x00100020');
         // const mod = dataSet.string('x00080060');
-        const rows = dataSet.int16("x00280010");
-        const cols = dataSet.int16("x00280011");
+        const rows = dataSet.int16("x00280010") ?? 512;
+        const cols = dataSet.int16("x00280011") ?? 512;
 
         const wc = imageBoxInfos.value[i].myWC ?? Number(dataSet.string("x00281050", 0) ?? "0");
         const ww = imageBoxInfos.value[i].myWW ?? Number(dataSet.string("x00281051", 0) ?? "1");
@@ -365,6 +370,11 @@ const showImage = (i:number) => {
 
         const centerX = info.centerX;
         const centerY = info.centerY;
+        
+        debugger;
+        if (info.zoom == null){
+          info.zoom = imageBoxWH.value[0] / rows;
+        }
         const zoom = info.zoom;
 
         info.imageNumberOfDicomTag = Number(dataSet.string("x00200013"));

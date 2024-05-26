@@ -248,7 +248,7 @@ const drawNiftiMip = async function(pix: Float32Array | Int16Array,
 
   const time4 = performance.now();
 
-  console.log(time1-time0, time2-time1, time3-time2, time4-time3);
+  // console.log(time1-time0, time2-time1, time3-time2, time4-time3);
 
 }
 
@@ -399,8 +399,6 @@ const writeMode = (text: string) => {
   const mes = ctx.measureText(text);
   
   ctx.fillText(text, cv1.value.width-mes.width, mes.fontBoundingBoxAscent);
-  console.log(mes);
-
 }
 
 defineExpose({show, show2, showRgb, showDirect,
