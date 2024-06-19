@@ -1,5 +1,11 @@
 <script setup lang="ts">
 
+// 2024/6/9 
+// Kenji Hirata
+// important class, responsible for drawing image box.
+//
+
+
 import { ref, onMounted} from 'vue';
 import * as THREE from 'three';
 
@@ -11,13 +17,16 @@ const isEnter = ref(false);
 const cv1 = ref<HTMLCanvasElement | null>(null);
 let ctx: CanvasRenderingContext2D | null = null;
 
-onMounted(() => {
+const init = () => {
   if (cv1.value === null) {
-    debugger;
     return;
   }
   ctx = cv1.value.getContext("2d", {willReadFrequently: true});
   clear();
+}
+
+onMounted(() => {
+  init();
 });
 
 const show = (ppp: Float32Array | Int16Array, cols: number, rows: number, wc: number, ww: number, intercept: number, slope: number, centerX:number, centerY:number, zoom: number) => {
@@ -65,7 +74,8 @@ const drawImageCvZoom = async function(pix: Float32Array | Int16Array, ny:number
     }
   }
   ctx.putImageData(myImageData, 0,0,0,0,canvasx, canvasy);
-  writeMode("2D");
+  showTextTopRight("2D");
+  showTextBottomLeft(`WC:${wc}/WW:${ww}`);
 
 }
 
@@ -116,9 +126,9 @@ const drawNiftiSlice = async function(pix: Float32Array | Int16Array,
             myImageData.data[ad+1] = clut[p][1]; //green
             myImageData.data[ad+2] = clut[p][2]; //blue
           }else{
-            myImageData.data[ad] = clut[0][0]; //red
-            myImageData.data[ad+1] = clut[0][1]; //green
-            myImageData.data[ad+2] = clut[0][2]; //blue
+            myImageData.data[ad] = clut[0][0];
+            myImageData.data[ad+1] = clut[0][1];
+            myImageData.data[ad+2] = clut[0][2];
           }
           ad += 4;
           v.add(v10);
@@ -126,7 +136,7 @@ const drawNiftiSlice = async function(pix: Float32Array | Int16Array,
       }
 
   ctx.putImageData(myImageData, 0,0,0,0,canvasx, canvasy);
-  writeMode("3D");
+  showTextTopRight("3D");
 }
 
 // let mipDataSet: Float32Array[] = new Float32Array[];
@@ -245,10 +255,15 @@ const drawNiftiMip = async function(pix: Float32Array | Int16Array,
       const time3 = performance.now();
 
   ctx.putImageData(myImageData, 0,0,0,0,canvasx, canvasy);
-
   const time4 = performance.now();
-
   // console.log(time1-time0, time2-time1, time3-time2, time4-time3);
+
+  if (isSurface){
+    showTextTopRight("sMIP");
+  }else{
+    showTextTopRight("MIP");
+  }
+
 
 }
 
@@ -377,6 +392,7 @@ const drawImageCvRgb = async function(pix:Uint8Array, ny:number, nx:number, shif
     }
   }
   ctx.putImageData(myImageData, 0,0,0,0,canvasx, canvasy);
+  showTextTopRight("RGB");
 }
 
 
@@ -392,7 +408,7 @@ const clear = (text = "No image") => {
   ctx.fillText(text,20,50);
 }
 
-const writeMode = (text: string) => {
+const showTextTopRight = (text: string) => {
   if (cv1.value === null || ctx === null) return;
   ctx.font = "18px Arial";
   ctx.fillStyle = "#66aa44";
@@ -401,7 +417,17 @@ const writeMode = (text: string) => {
   ctx.fillText(text, cv1.value.width-mes.width, mes.fontBoundingBoxAscent);
 }
 
-defineExpose({show, show2, showRgb, showDirect,
+const showTextBottomLeft = (text: string) => {
+  if (cv1.value === null || ctx === null) return;
+  ctx.font = "18px Arial";
+  ctx.fillStyle = "#66aa44";
+  const mes = ctx.measureText(text);
+  
+  ctx.fillText(text, 0, cv1.value.height - mes.fontBoundingBoxDescent );
+}
+
+
+defineExpose({init, show, show2, showRgb, showDirect,
    drawNiftiSlice, drawNiftiMip, clear});
 
 </script>

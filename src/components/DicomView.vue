@@ -1,97 +1,149 @@
 <script setup lang="ts">
 
 //5/21 今後付け加える機能
-// PNGを読み込めるように
-// MIP/surfaceMIP
-// Niftiの読み込み/fusion/できれば位置合わせ/rainbowCLUTが遅い
-// 1つでもエラーの出るファイルがあると開けない
-// 2Dの表示、右上に
-// 上下さかさま　spinal tumor
 // 画像をクローズするボタン
+// backup用の別URL
+// ここまでを常田先生の講義(6/27)に間に合わせたい
+//
+// シリーズ切り替えコンボボックス
+// 学生用にpixel mappingやマウス下のCT値を表示するシステム
+// DicomView.vueが肥大化しているので他ファイルに分散
+// 画像をもっと大きくしたいので、サイドバーを隠したり画像サイズをレスポンシブに
+// fusion
+// Nrrdも
+// 1つでもエラーの出るファイルがあると開けない
+// 上下さかさま　spinal tumor
+// できれば位置合わせ　ブラウザ上で果たして出来るか
+// 断面支持線
+// ROIツール
+//
+// MIP/surfaceMIP -> done
+// Niftiの読み込み -> done
+// rainbowCLUTが遅い -> done
+// phantomボタン -> done
+// pagingボタン、シリーズ切り替えボタン -> done
+// 2Dの表示、右上に -> done
+// スライス←→ボタンがsyncに対応していない -> done
+//
+// PNGを読み込めるように→ボツ
 
-import {solve} from './linalg.ts';
-import { ref } from "vue";
+import { ref, watch } from "vue";
 import { DataSet, parseDicom } from "dicom-parser";
 import * as DicomLib from './dicomLib.ts';
-import axios from "axios";
 import sidebar from "./Sidebar.vue";
 import imagebox from "./ImageBox.vue";
-import { ImageBoxInfoBase, DicomImageBoxInfo, DicomVolumeImageBoxInfo, defaultInfo } from "./DicomImageBoxInfo";
+import { ImageBoxInfoBase, DicomImageBoxInfo, VolumeImageBoxInfo, defaultInfo, pushVolume } from "./DicomImageBoxInfo";
 import { getAllFilesRecursive } from "./DragAndDropUtil";
-import { generateDicomVolumeFromDicom } from './dicom2dicomVolume';
+import { generateVolumeFromDicom } from './dicom2volume.ts';
 import * as DecompressJpegLossless from "./decompressJpegLossless";
-import { DicomVolume } from "./DicomVolume";
+import { Volume, voxelToWorld, worldToVoxel } from "./Volume.ts";
 import * as THREE from 'three';
 import {cluts} from './Clut.ts';
-import { decode } from 'fast-png';
+import * as nifti from 'nifti-reader-js';
+import * as Phantom from './phantom.ts';
 
-interface MyDataSet extends DataSet {
+
+const closingImages = defineModel<boolean>("closingImages");
+const drawer = defineModel<boolean>("drawer");
+const leftButtonFunction = defineModel<LeftButtonFunction>("leftButtonFunction");
+
+const imageBoxW = defineModel<number>("imageBoxW");
+const imageBoxH = defineModel<number>("imageBoxH");
+const tileN = defineModel<number>("tileN");
+const syncImageBox = defineModel<boolean>("syncImageBox");
+
+const setTimeOutInitAndShow = () => {
+  setTimeout(() => {
+    for (let a of imb.value!){
+      a.init();
+    }
+    show();
+  }, 10);
+}
+
+const imageBoxSizeChanged = () => {
+  setTimeOutInitAndShow();
+}
+
+watch(imageBoxW, imageBoxSizeChanged);
+watch(imageBoxH, imageBoxSizeChanged);
+watch(closingImages, () => {
+  if (closingImages.value){
+    initializeDicomListsImagesBoxInfos();
+    closingImages.value = false;
+    setTimeOutInitAndShow();
+  }
+});
+
+interface MyDicom extends DataSet {
   decompressed: ArrayBuffer;
 }
-
-const isMipCheckbox = ref(true);
-const isMipChanged = () => {
-  const info = getSelectedInfo();
-  info.isMip = !info.isMip;
-  show();
+interface Nii {
+  niftiHeader: nifti.NIFTI1,
+  pixelData: Float32Array
 }
 
+type OtherFile = Uint8Array;
+
+let bagOfFiles: (MyDicom | Nii | OtherFile)[];
+
 const selectedImageBoxId = ref(0);
-const imageBoxWH = ref([500,500]);
 const isLoading = ref(false);
 const isEnter = ref(false);
 
-const syncImageBox = ref(false);
 const showSummary = ref(false);
 const showTag = ref(false);
 const summaryText = ref('');
 const tagText = ref('');
 
 const imb = ref<InstanceType<typeof imagebox>[]>();
-const tileXY = ref([2,1]);
 
-let urlList: string[];
-let unsortedDicomDataSetList: MyDataSet[];
-let dicomDataSetList: MyDataSet[][];
-let dicomVolumeList: DicomVolume[];
+interface SeriesList { // 複数のDICOMファイル、もしくはVolumeデータ、もしくは両方（同一画像）、、ということはnx,ny,nzを共有するという案もあるが・・
+  myDicom: MyDicom[] | null,
+  volume: Volume | null,
+}
+let seriesList: SeriesList[];
 
 const imageBoxInfos = ref<ImageBoxInfoBase[]>([]);
 const getDicomImageBoxInfo = (index: number) => imageBoxInfos.value[index] as DicomImageBoxInfo;
-const getDicomVolumeImageBoxInfo = (index: number) => imageBoxInfos.value[index] as DicomVolumeImageBoxInfo;
+const getVolumeImageBoxInfo = (index: number) => imageBoxInfos.value[index] as VolumeImageBoxInfo;
 const isDicomImageBoxInfo = (i:number) => {
-  return "currentDicomSeriesNumber" in imageBoxInfos.value[i];
+  return "currentSliceNumber" in imageBoxInfos.value[i]; //この方法では、プロパティ名を変更したときにバグった。
 }
-const getSelectedInfo = () => getDicomVolumeImageBoxInfo(selectedImageBoxId.value);
+const getSelectedInfo = () => getVolumeImageBoxInfo(selectedImageBoxId.value);
 
-let leftButtonFunction = "None";
-const leftButtonFunctionChanged = (e: any) => {
-  leftButtonFunction = e;
+type LeftButtonFunction = "window" | "pan" | "zoom" | "page";
+// const leftButtonFunction = ref<LeftButtonFunction>("none");
+const leftButtonFunctionChanged = (e: LeftButtonFunction) => {
+  leftButtonFunction.value = e;
 };
 
 const initializeDicomListsImagesBoxInfos = () => {
-  urlList = [];
-  unsortedDicomDataSetList = [];
-  dicomDataSetList = [];
-  dicomVolumeList = [];
-  imageBoxInfos.value = [defaultInfo(0), defaultInfo(1)];
+  bagOfFiles = [];
+  seriesList = [];
+  imageBoxInfos.value = [defaultInfo(0), defaultInfo(1), defaultInfo(2), defaultInfo(3),defaultInfo(4),defaultInfo(5),defaultInfo(6),defaultInfo(7)];
 };
 initializeDicomListsImagesBoxInfos();
 
+const changeSlice_ = (add_number: number) => {
+  doOneOrAll(selectedImageBoxId.value, (id: number) => {
+    changeSlice(id, add_number);
+    showImage(id);
+  });
+}
+
 const changeSlice = (index: number, add_number: number) => {
   if (isDicomImageBoxInfo(index)){
-    const a = getDicomImageBoxInfo(index);
-    let c = a.currentSliceNumber;
-    c += add_number;
-    const len = dicomDataSetList[a.currentDicomSeriesNumber].length
-
-    if (c < 0) c = 0;
-    if (c >= len) c = len - 1;
-
-    a.currentSliceNumber = c;
+    const info = getDicomImageBoxInfo(index);
+    let temp = info.currentSliceNumber + add_number;
+    const len = seriesList[info.currentSeriesNumber].myDicom!.length
+    if (temp < 0) temp = 0;
+    if (temp >= len) temp = len - 1;
+    info.currentSliceNumber = temp;
   }else{
-    const a = getDicomVolumeImageBoxInfo(index);
-    if (a.isMip){
-      a.mip!.mipAngle += 15*add_number;
+    const a = getVolumeImageBoxInfo(index);
+    if (a.isMip && a.mip != null){
+      a.mip.mipAngle += 5*add_number;
     }else{
       a.centerInWorld.addScaledVector(a.vecz, add_number);
     }
@@ -102,15 +154,19 @@ const setMyWCWW = (i:number, wc:number | null, ww: number | null) => {
   imageBoxInfos.value[i].myWC= wc;
   imageBoxInfos.value[i].myWW= ww;
 }
+
 const getMyWCWW = (i:number) => {
   return [imageBoxInfos.value[i].myWC, imageBoxInfos.value[i].myWW];
 }
 
 const presetSelected = (e: string) => {
   const id = selectedImageBoxId.value;
-  if (e === "Lung") setMyWCWW(id, -700, 1500);
+  if (e === "Lung") setMyWCWW(id, -700, 1800);
+  if (e === "Abd") setMyWCWW(id, 30, 200);
+  if (e === "Med") setMyWCWW(id, 0, 320);
+  if (e === "Fat") setMyWCWW(id, 10, 275);
   if (e === "Bone") setMyWCWW(id, 200, 2000);
-  if (e === "Brain") setMyWCWW(id, 40, 80);
+  if (e === "Brain") setMyWCWW(id, 30, 80);
   if (e === "Reset") setMyWCWW(id, null, null);
   show();
 };
@@ -136,16 +192,17 @@ const doOneOrAll = (id: number, action: (i:number) => void ) => {
 const mouseMove = (e: MouseEvent) => {
   const id = getIdOfEventOccured(e);
   const info = getDicomImageBoxInfo;
-  const infoV = getDicomVolumeImageBoxInfo;
+  const infoV = getVolumeImageBoxInfo;
 
-  if (leftButtonFunction == "window") {
+  if (leftButtonFunction.value == "window") {
     if (e.buttons == 1) {
       let [wc,ww] = getMyWCWW(id);
       if (wc === null) {
-        wc = Number(dicomDataSetList[id][info(id).currentSliceNumber].string("x00281050", 0)) ?? 0;
+        wc = Number(seriesList[info(id).currentSeriesNumber].myDicom![info(id).currentSliceNumber].string("x00281050", 0)) ?? 0;
       }
       if (ww === null) {
-        ww = Number(dicomDataSetList[id][info(id).currentSliceNumber].string("x00281051", 0)) ?? 0;
+        ww = Number(seriesList[info(id).currentSeriesNumber].myDicom![info(id).currentSliceNumber].string("x00281051", 0)) ?? 0;
+        // ww = Number(dicomDataSetList[id][info(id).currentSliceNumber].string("x00281051", 0)) ?? 0;
       }
       wc += e.movementY;
       ww += e.movementX;
@@ -155,14 +212,14 @@ const mouseMove = (e: MouseEvent) => {
     }
   }
 
-  if (leftButtonFunction == "page") {
+  if (leftButtonFunction.value == "page") {
     if (e.buttons == 1) {
       doOneOrAll(id, (i:number) => changeSlice(i, e.movementY));
       show();
     }
   }
 
-  if (leftButtonFunction == "zoom") {
+  if (leftButtonFunction.value == "zoom") {
     if (e.buttons == 1) {
       doOneOrAll(id, (i:number) => {
         if (isDicomImageBoxInfo(id)){
@@ -182,7 +239,7 @@ const mouseMove = (e: MouseEvent) => {
     }
   }
 
-  if (leftButtonFunction == "pan") {
+  if (leftButtonFunction.value == "pan") {
     if (e.buttons == 1) {
       doOneOrAll(id, (i:number) => {
         if (isDicomImageBoxInfo(id)){
@@ -218,14 +275,85 @@ const imageBoxClicked = (e:MouseEvent) => {
 }
 
 const changeSeries = (i:number) => {
-  const j = (imageBoxInfos.value[selectedImageBoxId.value] as DicomImageBoxInfo).currentDicomSeriesNumber;
-  if (j+i >=0 && j+i < dicomDataSetList.length){
+  const j = imageBoxInfos.value[selectedImageBoxId.value].currentSeriesNumber;
+  // const j = (imageBoxInfos.value[selectedImageBoxId.value] as DicomImageBoxInfo).currentDicomSeriesNumber;
+  if (j+i >=0 && j+i < seriesList.length){
     const info = imageBoxInfos.value[selectedImageBoxId.value] as DicomImageBoxInfo;
-    info.currentDicomSeriesNumber = j+i;
+    info.currentSeriesNumber = j+i;
     info.currentSliceNumber=0;
     show();
   }
 }
+
+const doSort = () => {
+  let serieses:string[] = [];
+  for (const f of bagOfFiles){
+
+    if (f instanceof Uint8Array){
+      console.log(`otherfile: ${f.length} bytes`);
+    }else if ("niftiHeader" in f){
+      const dim = f['niftiHeader']['dims'];
+      const af = f['niftiHeader']['affine'];
+
+      const vx = new THREE.Vector3(af[0][0],af[0][1],af[0][2]).multiplyScalar(-1);
+      const vy = new THREE.Vector3(af[1][0],af[1][1],af[1][2]).multiplyScalar(-1);
+      const vz = new THREE.Vector3(af[2][0],af[2][1],af[2][2]);
+      const pos = new THREE.Vector3(af[0][3], af[1][3], af[2][3]);
+
+      seriesList.push({
+        myDicom: null,
+        volume:{
+          nx: dim[1],
+          ny: dim[2],
+          nz: dim[3],
+          imagePosition: pos,
+          vectorX: vx,
+          vectorY: vy,
+          vectorZ: vz,
+          voxel: f.pixelData,
+        }
+      });
+
+    }else{
+
+      const suid = f.string("x0020000e") ?? ""; // series instance uid
+      const sd = f.string("x0008103e") ?? ""; // series description
+      const name = suid+sd;
+
+      let id = serieses.indexOf(name);
+      if (id === -1){
+        id = serieses.length;
+        serieses.push(name);
+      }
+      if (seriesList[id] == null){
+        seriesList[id] = {myDicom:null, volume:null};
+      }
+      if (seriesList[id].myDicom == null){
+        seriesList[id].myDicom = [];
+      }
+      seriesList[id].myDicom!.push(f);
+    }
+
+  }
+  bagOfFiles=[];
+
+  for (const d of seriesList){
+    if (d.myDicom != null){
+      d.myDicom.sort((a: DataSet, b: DataSet) => {
+        return Number(a.string("x00200013")) - Number(b.string("x00200013"));
+      });
+    }
+  }
+
+  summaryText.value = "";
+  // for (let i=0; i<serieses.length; i++){
+  //   summaryText.value += `${serieses[i]}  ${seriesList[i].length} images \n`;
+  // }
+  // for (let i=0; i<volumeList.length; i++){
+  //   summaryText.value += `${volumeList[i].nx} ${volumeList[i].ny} ${volumeList[i].ny} \n`;
+  // }
+};
+
 
 const loadFile = async (file: File) => {
   loadFiles([file]);
@@ -244,9 +372,9 @@ const loadFiles = (files: FileList | File[]) => {
   // setIntervalで定期的にチェックして、読み込みが終了していたらソートしてインターバルをキャンセルする。
   let intervalId : any | null = null;
   const callback = () => {
-    const msg = `${unsortedDicomDataSetList.length} / ${localFileList.length}`;
+    const msg = `${bagOfFiles.length} / ${localFileList.length}`;
     imb.value![0].clear(msg);
-    if (localFileList.length === unsortedDicomDataSetList.length){
+    if (localFileList.length === bagOfFiles.length){
       clearInterval(intervalId!);
       doSort();
       show();
@@ -256,83 +384,54 @@ const loadFiles = (files: FileList | File[]) => {
   intervalId = setInterval(callback, 100);
 };
 
-const openSample = async () => {
-  // unsortedDicomDataSetList = [];
-  // urlList = [
-  //   "https://metavol.github.io/metavol-web/s789cjku34/IMG48",
-  //   "https://metavol.github.io/metavol-web/s789cjku34/IMG49",
-  //   "https://metavol.github.io/metavol-web/s789cjku34/IMG50",
-  // ];
-
-  // imageBoxInfos.value[0].currentSliceNumber = 0;
-
-  // for (let i = 0; i < urlList.length; i++) {
-  //   loadFromUrl(i);
-  // }
-};
-
-const doSort = () => {
-  let serieses:string[] = [];
-  for (const d of unsortedDicomDataSetList){
-
-    const suid = d.string("x0020000e") ?? ""; // series instance uid
-    const sd = d.string("x0008103e") ?? ""; // series description
-    const name = suid+sd;
-
-    let id = serieses.indexOf(name!);
-    if (id === -1){
-      id = serieses.length;
-      serieses.push(name!);
-    }
-    if (dicomDataSetList[id] == null){
-      dicomDataSetList[id] = [];
-    }
-    dicomDataSetList[id].push(d);
-
-  }
-  unsortedDicomDataSetList=[];
-
-  for (const d of dicomDataSetList){
-    d.sort((a: DataSet, b: DataSet) => {
-      return Number(a.string("x00200013")) - Number(b.string("x00200013"));
-    });
-  }
-
-  summaryText.value = "";
-  for (let i=0; i<serieses.length; i++){
-    summaryText.value += `${serieses[i]}  ${dicomDataSetList[i].length} images \n`;
-  }
-};
-
-const loadFromLocal = async (f: File) => {
+const loadFromLocal = (f: File) => {
   const reader = new FileReader();
   reader.onload = () => {
+
     if (reader.result !== null) {
-      const u8a = new Uint8Array(reader.result as ArrayBuffer);
-      const dataSet = parseDicom(u8a) as MyDataSet;
-      unsortedDicomDataSetList.push(dataSet);
+      const buf = reader.result as ArrayBuffer;
+      const u8a = new Uint8Array(buf);
+      try{
+        const dataSet = parseDicom(u8a) as MyDicom;
+        bagOfFiles.push(dataSet);
+      }catch{
+        try{
+          loadNii(buf);
+        }catch{
+          bagOfFiles.push(u8a);
+        }
+      }
     }
   };
   reader.readAsArrayBuffer(f);
 };
 
-const loadFromUrl = (i: number) => {
-  axios
-    .get(urlList[i], { responseType: "arraybuffer"})
-    .then(function (response) {
-      const u8a = new Uint8Array(response.data);
-      const options = { TransferSyntaxUID: "1.2.840.10008.1.2" };
-      const dataSet = parseDicom(u8a, options) as MyDataSet;
-      unsortedDicomDataSetList[i] = dataSet;
-      if (i === 0) {
-        show();
-      }
-    });
-};
+const loadNii = (arraybuffer: ArrayBuffer) => {
+
+  if (nifti.isCompressed(arraybuffer)){
+    arraybuffer = nifti.decompress(arraybuffer);
+  }
+
+  if (nifti.isNIFTI(arraybuffer)) {
+    const hdr = nifti.readHeader(arraybuffer) as nifti.NIFTI1;
+    const px: ArrayBuffer = nifti.readImage(hdr, arraybuffer);
+
+    if (hdr["numBitsPerVoxel"] == 32) {
+      const px0 = new Float32Array(px);
+      bagOfFiles.push({ niftiHeader: hdr, pixelData: px0 });
+    } else if (hdr["numBitsPerVoxel"] == 64) {
+      const px1 = new Float64Array(px);
+      bagOfFiles.push({ niftiHeader: hdr, pixelData: new Float32Array(px1) });
+    } else {
+      const px1 = new Int16Array(px);
+      bagOfFiles.push({ niftiHeader: hdr, pixelData: new Float32Array(px1) });
+    }
+  }
+}
 
 const show = () => {
   if (imb.value == null) return;
-  for (let i=0; i<imb.value!.length; i++){
+  for (let i=0; i<imb.value.length; i++){
     showImage(i);
   }
 };
@@ -344,8 +443,11 @@ const showImage = (i:number) => {
   if (isDicomImageBoxInfo(i)){
     const info = info1 as DicomImageBoxInfo;
 
-    const j = info.currentDicomSeriesNumber;
-    const dataSet = dicomDataSetList[j][info.currentSliceNumber];
+    const j = info.currentSeriesNumber;
+    
+    if (seriesList[j] == null || seriesList[j].myDicom == null) return;
+
+    const dataSet = seriesList[j].myDicom![info.currentSliceNumber];
 
     if (showTag.value && i == selectedImageBoxId.value){
       tagText.value = DicomLib.allDicomTagToString(dataSet);
@@ -371,9 +473,8 @@ const showImage = (i:number) => {
         const centerX = info.centerX;
         const centerY = info.centerY;
         
-        debugger;
         if (info.zoom == null){
-          info.zoom = imageBoxWH.value[0] / rows;
+          info.zoom = imageBoxW.value! / rows;
         }
         const zoom = info.zoom;
 
@@ -397,7 +498,7 @@ const showImage = (i:number) => {
         } else {
           const i16a = new Int16Array(buf, offset, length / 2);
           imb.value![i].show(
-            i16a, rows!, cols!, wc, ww, intercept, slope, centerX, centerY, zoom
+            i16a, rows, cols, wc, ww, intercept, slope, centerX, centerY, zoom
           );
         }
       }
@@ -406,20 +507,19 @@ const showImage = (i:number) => {
     }
   }
   else{
-    const info = info1 as DicomVolumeImageBoxInfo;
+    const info = info1 as VolumeImageBoxInfo;
 
-    const j = info.dicomVolumeNumber;
-    const dv = dicomVolumeList[j];
+    const j = info.currentSeriesNumber;
+    const dv = seriesList[j].volume!;
     const pixelData0 = dv.voxel;
     const nx = dv.nx;
     const ny = dv.ny;
     const nz = dv.nz;
-    const p00 = worldToVoxel(screenToWorld(i,0,0),j);
-    const v01 = worldToVoxel(screenToWorld(i,0,1),j).sub(p00);
-    const v10 = worldToVoxel(screenToWorld(i,1,0),j).sub(p00);
+    const p00 = worldToVoxel_(screenToWorld(i,0,0),j);
+    const v01 = worldToVoxel_(screenToWorld(i,0,1),j).sub(p00);
+    const v10 = worldToVoxel_(screenToWorld(i,1,0),j).sub(p00);
     const [wc,ww] = getMyWCWW(i);
     const clut = cluts[info.clut];
-
 
     if (!info.isMip){
       imb.value![i].drawNiftiSlice(pixelData0,nx,ny,nz, wc!, ww!, p00,v01,v10,clut);
@@ -437,34 +537,22 @@ const screenToWorld = (imageBoxNumber: number, x: number, y:number) => {
   // 今はVolumeのときしか対応していないが、理論的にはDicomにも対応できる。
 
   const world = new THREE.Vector3(0,0,0);
-  const a = imageBoxInfos.value[imageBoxNumber] as DicomVolumeImageBoxInfo;
-  world.add(a.centerInWorld).addScaledVector(a.vecx,x-imageBoxWH.value[0]/2).addScaledVector(a.vecy,y-imageBoxWH.value[1]/2);
+  const a = imageBoxInfos.value[imageBoxNumber] as VolumeImageBoxInfo;
+  world.add(a.centerInWorld).addScaledVector(a.vecx,x-imageBoxW.value!/2).addScaledVector(a.vecy,y-imageBoxH.value!/2);
   return world;
 }
 
-const voxelToWorld = (p: THREE.Vector3, vol_id:number) => {
-  const v = dicomVolumeList[vol_id];
-  const worldx = v.imagePosition.x + p.x * v.vectorX.x + p.y * v.vectorX.y + p.z * v.vectorX.z;
-  const worldy = v.imagePosition.y + p.x * v.vectorY.x + p.y * v.vectorY.y + p.z * v.vectorY.z;
-  const worldz = v.imagePosition.z + p.x * v.vectorZ.x + p.y * v.vectorZ.y + p.z * v.vectorZ.z;
-  // const worldx = af[0][3] + p.x * af[0][0] + p.y * af[0][1] + p.z * af[0][2];
-  // const worldy = af[1][3] + p.x * af[1][0] + p.y * af[1][1] + p.z * af[1][2];
-  // const worldz = af[2][3] + p.x * af[2][0] + p.y * af[2][1] + p.z * af[2][2];
-  return new THREE.Vector3(worldx,worldy,worldz);
+const voxelToWorld_ = (p: THREE.Vector3, vol_id:number) => {
+  const v = seriesList[vol_id].volume!;
+  return voxelToWorld(p, v);
 }
 
-const worldToVoxel = (p: THREE.Vector3, vol_id:number) => {
-  const v = dicomVolumeList[vol_id];
-  const right = [p.x - v.imagePosition.x, p.y- v.imagePosition.y, p.z - v.imagePosition.z];
-  const left = [[v.vectorX.x,v.vectorX.y,v.vectorX.z],
-   [v.vectorY.x,v.vectorY.y, v.vectorY.z, ],
-   [v.vectorZ.x,v.vectorZ.y, v.vectorZ.z, ]];
-  const ans = solve(left, right)
-  return new THREE.Vector3(ans[0],ans[1],ans[2]);
+const worldToVoxel_ = (p: THREE.Vector3, vol_id:number) => {
+  const v = seriesList[vol_id].volume!;
+  return worldToVoxel(p,v);
 }
 
 const changeSuv = (a:number,b:number) => {
-
   for (let i=0; i<imageBoxInfos.value.length; i++){
     setMyWCWW(i, (a+b)/2, b-a);
   }
@@ -472,35 +560,34 @@ const changeSuv = (a:number,b:number) => {
 }
 
 
-const generateNifti = () => {
+const mpr = () => {
 
-  const i = (imageBoxInfos.value[selectedImageBoxId.value] as DicomImageBoxInfo).currentDicomSeriesNumber;
-  const d = generateDicomVolumeFromDicom(dicomDataSetList[i]);
-  dicomVolumeList.push(d);
-  const n = dicomVolumeList.length - 1;
+  const i = imageBoxInfos.value[selectedImageBoxId.value].currentSeriesNumber;
+  const d = generateVolumeFromDicom(seriesList[i].myDicom!);
+  seriesList[i].volume = d;
 
-  const p0 = voxelToWorld(new THREE.Vector3(0,0,0),n);
-  const p1 = voxelToWorld(new THREE.Vector3(d.nx,d.ny, d.nz),n);
+  const p0 = voxelToWorld_(new THREE.Vector3(0,0,0),i);
+  const p1 = voxelToWorld_(new THREE.Vector3(d.nx,d.ny, d.nz),i);
   p0.add(p1).divideScalar(2); // 中点
 
-  const c = {
+  imageBoxInfos.value[selectedImageBoxId.value] = {
     clut: 0,
     myWC: 3,
     myWW: 6,
     description: "metavol generated",
-    dicomVolumeNumber: n,
+    currentSeriesNumber: i,
     centerInWorld: p0,
     vecx: d.vectorX.clone(),
     vecy: d.vectorY.clone(),
     vecz: d.vectorZ.clone(),
     isMip: false,
     mip: null,
-  };
+  } as VolumeImageBoxInfo;
 
-  imageBoxInfos.value[selectedImageBoxId.value] = c;
 }
 
-const acExchange = () => {
+
+const switchToAxial = () => {
   const d = getSelectedInfo();
   const temp = d.vecy;
   d.vecy = d.vecz;
@@ -508,23 +595,21 @@ const acExchange = () => {
   d.vecz = temp;
 }
 
-const clickReverse = () => {
+const reverse = () => {
   const d = getSelectedInfo();
   if (d.clut == 0) d.clut = 1;
   else if (d.clut == 1) d.clut = 0;
   else if (d.clut == 2) d.clut = 3;
   else if (d.clut == 3) d.clut = 2;
+  else if (d.clut == 4) d.clut = 5;
+  else if (d.clut == 5) d.clut = 4;
 }
 
-const clickMonochrome = () => {
-  getSelectedInfo().clut=0;
-}
+const switchToMonochrome = () => { getSelectedInfo().clut=0; }
+const switchToRainbow = () => { getSelectedInfo().clut=2;}
+const switchToHot = () => { getSelectedInfo().clut=4;}
 
-const clickRainbow = () => {
-  getSelectedInfo().clut=2;
-}
-
-const clickMip = () => {
+const switchToMip = () => {
   const d = getSelectedInfo();
   d.isMip = !d.isMip;
   if (d.isMip && d.mip == null){
@@ -537,135 +622,103 @@ const clickMip = () => {
   }
 }
 
-const clickSurfaceMip = () => {
+const switchToSMip = () => {
   const d = getSelectedInfo();
-  if (!d.isMip) clickMip();
+  if (!d.isMip) switchToMip();
   if (d.mip != null){
     d.mip.isSurface = !d.mip?.isSurface;
   }
 }
 
-// const generateDemoNifti = () => {
-//   const buf = generateDemoNii();
-//   emit("NiftiDataSent", buf);
-// }
+const phantom1 = () => {
+  const P = Phantom.generatePhantom();
+  const c = pushVolume(seriesList, P);
+  imageBoxInfos.value[selectedImageBoxId.value] = c;
+  show();
+}
+const phantom2 = () => {
+  const P = Phantom.generatePhantom2();
+  const c = pushVolume(seriesList, P);
+  imageBoxInfos.value[selectedImageBoxId.value] = c;
+  show();
+}
 
-// const showLocalDicom = (dcmFile: File) => {
+const phantom3 = () => {
+  debugger;
 
-//   const reader = new FileReader();
+  const P = Phantom.generatePhantom3();
+  const c = pushVolume(seriesList, P);
+  imageBoxInfos.value[selectedImageBoxId.value] = c;
+  show();
+}
 
-//   reader.onload = () => {
-//       if (reader.result !== null){
-//         const u8a = new Uint8Array(reader.result as ArrayBuffer);
-//         showImage(u8a);
-//       }
-//   };
-//   reader.readAsArrayBuffer(dcmFile);
-// }
+const runDebugger = () => {
+  console.log(innerWidth);
+};
 
-// const showRemoteDicom = (fileUrl: string) => {
-//   axios.get(fileUrl, {responseType: "arraybuffer"})
-//   .then(function (response){
-//     const u8a = new Uint8Array(response.data);
-//     showImage(u8a);
-//   });
-// }
 
-// const dicomFileDicSummary = () => {
-//   let s = "";
-//   for (const a in dicomFileDic){
-//     s += a + " " + Number(dicomFileDic[a].length);
-//   }
-//   console.log("dicom_file_dic_summary computed")
-//   return s;
-// };
+
 </script>
 
 <template>
-  <v-container>
-  <div style="display: flex; flex-flow: row;">
-    <div>
-    <sidebar @fileLoaded="loadFile" @dirLoaded="loadFiles" @sort="doSort" @openSample="openSample"
-      @leftButtonFunctionChanged="leftButtonFunctionChanged"
-      @presetSelected="presetSelected"
-      sortVisible="0"></sidebar>
-
-<div>
-<input type="checkbox" id="sync_checkbox" v-model="syncImageBox" />
-<label for="sync_checkbox">Sync</label>
-</div>
-<div>
-<input type="checkbox" id="showSummary_checkbox" v-model="showSummary" />
-<label for="showSummary_checkbox">Show summary</label>
-</div>
-<div>
-<input type="checkbox" id="showTag_checkbox" v-model="showTag" />
-<label for="showTag_checkbox">Show tag</label>
-</div>
-
-</div>
-    <div style="display: flex; flex-direction: column;">
-      <div class="wrapper">
-        <div v-for="i in tileXY[0] * tileXY[1]">
-          <imagebox ref="imb" :imageBoxId="i-1" :width="imageBoxWH[0]" :height="imageBoxWH[1]" @wheel.prevent="wheel"
-            @click="imageBoxClicked" @mousemove="mouseMove"
-            @dragenter="dragEnter" @dragleave="dragLeave" @dropover.prevent @drop.prevent="dropFile"
-            :isEnter="isEnter" :selected="i-1 === selectedImageBoxId">
-          </imagebox>
-          <div>
-            <p>
-              {{ imageBoxInfos[i-1].description }} <br>
-              Im {{ imageBoxInfos[i-1].imageNumberOfDicomTag }} /
-              WC {{ imageBoxInfos[i-1].myWC ?? "default" }} /
-              WW {{ imageBoxInfos[i-1].myWW ?? "default" }}
-            </p>
-          </div>
-        </div>
-      </div>
-
-      <div style="display: flex; flex-flow: row; vertical-align: auto;">
-        <v-btn @click="changeSeries(-1)">Previous Series</v-btn>
-        <v-btn @click="changeSeries(1)">Next Series</v-btn>
-      <!-- <button @click="generateDemoNifti">test</button> -->
-
-      <v-btn @click="generateNifti();show();">MPR</v-btn>
-      <v-btn @click="acExchange();show();">AC exchange</v-btn>
-      <v-btn @click="clickMonochrome();show();">Monochrome</v-btn>
-      <v-btn @click="clickRainbow();show();">Rainbow</v-btn>
-      <v-btn @click="clickReverse();show();">Reverse</v-btn>
-      <v-btn @click="clickMip();show();">MIP</v-btn>
-      <v-btn @click="clickSurfaceMip();show();">sMIP</v-btn>
-
-      <!-- <input type="checkbox" id="mip_checkbox" v-model="isMipCheckbox" @change="isMipChanged" />
-      <label for="mip_checkbox">MIP</label> -->
-
-        </div>
-
+  <v-container fluid>
+    <v-row>
+      <v-navigation-drawer v-model="drawer" style="background-color: #000;">
+        <v-container>
+          <sidebar @fileLoaded="loadFile"
+            @dirLoaded="loadFiles"
+            @sort="doSort"
+            @leftButtonFunctionChanged="leftButtonFunctionChanged"
+            @presetSelected="presetSelected"
+            @changeSlice="changeSlice_"
+            @changeSeries="changeSeries"
+            @mpr="mpr"
+            @axi="switchToAxial"
+            @cor="switchToAxial"
+            @mip="switchToMip"
+            @smip="switchToSMip"
+            @monochrome="switchToMonochrome"
+            @rainbow="switchToRainbow"
+            @hot="switchToHot"
+            @reverse="reverse"
+            @phantom1="phantom1"
+            @phantom2="phantom2"
+            @phantom3="phantom3"
+          ></sidebar>
         
+        <v-switch label="Show summary" v-model="showSummary" style="padding-top: 36px;" hide-details></v-switch>
+        <v-switch label="Show tag" v-model="showTag" hide-details></v-switch>
 
-      <textarea v-if="showSummary" v-model="summaryText" style="height: auto;" />
-      <textarea v-if="showTag" v-model="tagText" style="height: 400px;" />
+      </v-container>
+        
+      </v-navigation-drawer>
 
-    </div>
+      <v-col>
+        <v-row no-gutters>
+          <v-col cols="auto" v-for="i in tileN" >
+            <imagebox :class="{'cursor-grab': leftButtonFunction==='pan'}" ref="imb" :imageBoxId="i-1"
+             :width="imageBoxW" :height="imageBoxH" @wheel.prevent="wheel"
+              @click="imageBoxClicked" @mousemove="mouseMove"
+              @dragenter="dragEnter" @dragleave="dragLeave" @dropover.prevent @drop.prevent="dropFile"
+              :isEnter="isEnter" :selected="i-1 === selectedImageBoxId">
+            </imagebox>
+          </v-col>
+        </v-row>
 
-</div>
+        <v-row>
+          <textarea v-if="showSummary" v-model="summaryText" style="height: auto;" />
+        </v-row>
+
+        <v-row>
+          <textarea v-if="showTag" v-model="tagText" style="height: 400px;" />
+        </v-row>
+
+      </v-col>
+
+  </v-row>
 
 </v-container>
 
-  <!-- <p>
-    <a href="https://www.dropbox.com/scl/fi/ad6g3ij4qj5w1mnvvdbw5/SE1.zip?rlkey=ji5pkkr0ddtci3t2xyfglj18d&dl=0" target="_blank">Download sample</a>
-  </p> -->
-
-  <!-- <p>{{ currentProgress }}</p> -->
-  <!-- <p>{{ dicomFileDicSummary() }}</p> -->
 </template>
-
-<style scoped>
-.wrapper {
-  display: flex;
-  /* grid-template-columns: repeat(4, 1fr); */
-}
-
-</style>
 
 

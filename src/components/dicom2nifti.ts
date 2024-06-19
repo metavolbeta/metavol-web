@@ -1,3 +1,5 @@
+// retiring 2024/6/9
+
 import { DataSet } from "dicom-parser";
 import * as THREE from 'three';
 
@@ -68,8 +70,6 @@ export const generateNiftiFromDicom = (dcmList: MyDataSet[]) => {
         d1.floatString("x00200032",1)!,
         d1.floatString("x00200032",2)!
     );
-
-    debugger;
 
     const vz = pos1.clone();
     vz.sub(pos0);

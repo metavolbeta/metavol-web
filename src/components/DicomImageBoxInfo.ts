@@ -1,16 +1,21 @@
 // 2024/5/4
 // modified 2024/5/19
+//
+// homework 6/9: which is better, type vs. interface?
+//
+//
 
 import * as THREE from 'three';
+import * as Volume from './Volume';
 
 export type ImageBoxInfoBase = {
+    currentSeriesNumber: number,
     myWC: number | null,
     myWW: number | null,
     description: string,
 }
 
 export type DicomImageBoxInfo = ImageBoxInfoBase &  {
-    currentDicomSeriesNumber: number,
     currentSliceNumber: number,
     imageNumberOfDicomTag: number | null,
     centerX:number,
@@ -18,8 +23,7 @@ export type DicomImageBoxInfo = ImageBoxInfoBase &  {
     zoom: number | null,
 }
 
-export type DicomVolumeImageBoxInfo = ImageBoxInfoBase & {
-    dicomVolumeNumber: number,
+export type VolumeImageBoxInfo = ImageBoxInfoBase & {
     centerInWorld:THREE.Vector3,
     vecx: THREE.Vector3,
     vecy: THREE.Vector3,
@@ -37,7 +41,7 @@ export type DicomVolumeImageBoxInfo = ImageBoxInfoBase & {
 
 export const defaultInfo = (i: number) => {
     return {
-        currentDicomSeriesNumber: i,
+        currentSeriesNumber: i,
         currentSliceNumber:0,
         imageNumberOfDicomTag: null,
         description: "",
@@ -49,5 +53,38 @@ export const defaultInfo = (i: number) => {
         clut:0,
     };
     // centerの意味は、画面上のcanvasの中心（canvasが800x800なら(400,400)）が、DICOMファイル上に対応する画素の座標（一般的には256,256）からのオフセットである。
+}
+
+export const pushVolume = (seriesList: any, volume: any) => {
+
+    seriesList.push({
+        volume,
+        myDicom: null,
+    });
+
+    const n = seriesList.length-1;
+    const d = seriesList[n].volume!;
+
+    const p0 = Volume.voxelToWorld(new THREE.Vector3(0,0,0),volume);
+    const p1 = Volume.voxelToWorld(new THREE.Vector3(volume.nx, volume.ny, volume.nz),volume);
+    p0.add(p1).divideScalar(2); // 中点
+
+    const c = {
+        clut: 0,
+        myWC: 3,
+        myWW: 6,
+        description: "phantom",
+        currentSeriesNumber: n,
+        centerInWorld: p0,
+        vecx: d.vectorX.clone().multiplyScalar(0.3),
+        vecy: d.vectorY.clone().multiplyScalar(0.3),
+        vecz: d.vectorZ.clone().multiplyScalar(1),
+        isMip: false,
+        mip: null,
+    };
+
+    return c;
+
+
 }
 

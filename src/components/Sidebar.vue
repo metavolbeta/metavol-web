@@ -2,19 +2,29 @@
 
 import { ref } from 'vue';
 
-const radioGroup = ref("");
-
-const props = defineProps(["sortVisible"]);
 const emit = defineEmits([
-  "sort",
   "fileLoaded",
   "dirLoaded",
   "leftButtonFunctionChanged",
   "openSample",
-  "presetSelected"
+  "presetSelected",
+  "changeSeries",
+  "changeSlice",
+  "mpr",
+  "axi",
+  "cor",
+  "mip",
+  "smip",
+  "monochrome",
+  "rainbow",
+  "hot",
+  "reverse",
+  "phantom1",
+  "phantom2",
+  "phantom3",
 ]);
 
-const leftButtonFunction = ref('none');
+// const leftButtonFunction = ref('none');
 
 const openFile: any = ref(null);
 const openDir: any = ref(null);
@@ -23,59 +33,105 @@ const openDirClicked = () => {openDir.value.click()}
 const dicom_open = (e: any) => emit("fileLoaded", e.target.files[0]);
 const dicom_dir_open = (e: any) => emit("dirLoaded", e.target.files);
 // const openSampleClicked = () => emit("openSample");
-const sortClicked = () => emit("sort");
-const leftButtonFunctionChanged = () =>{
-  emit("leftButtonFunctionChanged", leftButtonFunction.value);
-}
+// const leftButtonFunctionChanged = (func: string) =>{
+//   leftButtonFunction.value = func;
+//   emit("leftButtonFunctionChanged", leftButtonFunction.value);
+// }
 const presetClicked = (e:string) => emit("presetSelected", e);
+const changeSeries = (e:number) => emit("changeSeries", e);
+const changeSlice = (e:number) => emit("changeSlice", e);
+
 
 </script>
 
 <template>
-<div style="display:flex; flex-flow: column;">
 
-  <div style="display:flex; flex-flow: column;">
+  <v-container fluid>
 
-    <!-- <v-file-input label="Open file"></v-file-input>
-
-    <button @click="openFileClicked">Open File</button>
-    <input ref="openFile" type="file" class="hidden-input" @change="dicom_open">
-
-    <button @click="openDirClicked">Open Folder</button>
-    <input ref="openDir" type="file" class="hidden-input" @change="dicom_dir_open" webkitdirectory multiple>
-
-    <button v-if="props.sortVisible==1" @click="sortClicked">Sort</button> -->
-
-    <!-- <button @click="openSampleClicked">Open Sample</button> -->
-
-  </div>
-
-  <div  style="display:flex; flex-flow: column; text-align: left;">
-    <label>Left button</label>
-
-    <v-radio-group v-model="leftButtonFunction" @change="leftButtonFunctionChanged">
-      <v-radio key="none" label="None" value="none" />
-      <v-radio key="window" label="Window" value="window" />
-      <v-radio key="pan" label="Pan" value="pan" />
-      <v-radio key="zoom" label="Zoom" value="zoom" />
-      <v-radio key="page" label="Page" value="page" />
-    </v-radio-group>
-
-    </div>
-
-  <br>
-  <label>Preset</label>
-  <div style="display:flex; flex-flow: column;">
-    <div style="display:flex; flex-flow: row;">
-      <v-btn @click="presetClicked('Reset')">Reset</v-btn>
+    <v-row>
+      <h3>Window preset</h3>
+    </v-row>
+    <v-row>
       <v-btn @click="presetClicked('Lung')">Lung</v-btn>
-    </div>
-    <div style="display:flex; flex-flow: row;">
+      <v-btn @click="presetClicked('Med')">Med</v-btn>
+      <v-btn @click="presetClicked('Abd')">Abd</v-btn>
       <v-btn @click="presetClicked('Bone')">Bone</v-btn>
       <v-btn @click="presetClicked('Brain')">Brain</v-btn>
-    </div>
-  </div>
+      <v-btn @click="presetClicked('Fat')">Fat</v-btn>
+      <v-btn @click="presetClicked('Reset')">Reset</v-btn>
+    </v-row>
 
-</div>
+    <v-row style="padding-top: 9px;">
+      <h3>Slice</h3>
+    </v-row>
+    <v-row>
+      <v-btn @click="changeSlice(-100000)"><v-icon icon="mdi-arrow-collapse-left" ></v-icon></v-btn>
+      <v-btn @click="changeSlice(-1)"><v-icon icon="mdi-arrow-left" ></v-icon></v-btn>
+      <v-btn @click="changeSlice(1)"><v-icon icon="mdi-arrow-right" ></v-icon></v-btn>
+      <v-btn @click="changeSlice(100000)"><v-icon icon="mdi-arrow-collapse-right" ></v-icon></v-btn>
+    </v-row>
+
+    <v-row style="padding-top: 9px;">
+      <h3>Color</h3>
+    </v-row>
+    <v-row>
+      <v-btn @click="emit('monochrome')">Monochrome</v-btn>
+      <v-btn @click="emit('rainbow')">Rainbow</v-btn>
+      <v-btn @click="emit('hot')">Hot</v-btn>
+      <v-btn @click="emit('reverse')">Reverse</v-btn>
+    </v-row>
+
+    <v-row style="padding-top: 9px;">
+      <h3>3D</h3>
+    </v-row>
+    <v-row>
+      <v-btn @click="emit('mpr')">MPR</v-btn>
+      <v-btn @click="emit('axi')">Axi</v-btn>
+      <v-btn @click="emit('cor')">Cor</v-btn>
+      <v-btn @click="emit('mip')">MIP</v-btn>
+      <v-btn @click="emit('smip')">sMIP</v-btn>
+    </v-row>
+
+    <v-row style="padding-top: 9px;">
+      <h3>Series</h3>
+    </v-row>
+    <v-row>
+      <v-btn @click="changeSeries(-1)"><v-icon icon="mdi-arrow-left" ></v-icon></v-btn>
+      <v-btn @click="changeSeries(1)"><v-icon icon="mdi-arrow-right" ></v-icon></v-btn>
+    </v-row>
+
+
+    <v-row style="padding-top: 9px;">
+      <h3>Demo</h3>
+    </v-row>
+    <v-row>
+      <v-btn @click="emit('phantom1')">1</v-btn>
+      <v-btn @click="emit('phantom2')">2</v-btn>
+      <v-btn @click="emit('phantom3')">3</v-btn>
+    </v-row>
+
+  </v-container>
 
 </template>
+
+
+<style scoped>
+.v-btn {
+  margin: 2px 2px 2px 2px;
+  min-width: 0;
+  min-height: 0;
+  padding: 0px 10px;
+  text-transform: none;
+  transition: border-color 0.25s, box-shadow 0.25s;
+  background-color: #3e2723;
+  border: 1px solid transparent;
+}
+
+
+.v-btn:hover {
+  background-color: #4e342e;
+  box-shadow: 0 0 7px 2px #feee95;
+}
+
+
+</style>

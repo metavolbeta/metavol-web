@@ -1,12 +1,16 @@
+// 2024/6/9
+//
+// homework: MyDataSet is dupulicated with DicomView.vue
+
 import { DataSet } from "dicom-parser";
 import * as THREE from 'three';
-import { DicomVolume } from "./DicomVolume";
+import { Volume } from "./Volume";
 
 interface MyDataSet extends DataSet {
     decompressed: ArrayBuffer;
   }
 
-export const generateDicomVolumeFromDicom = (dcmList: MyDataSet[]) => {
+export const generateVolumeFromDicom = (dcmList: MyDataSet[]) => {
 
 
     let suvFactor = 1;
@@ -86,7 +90,7 @@ export const generateDicomVolumeFromDicom = (dcmList: MyDataSet[]) => {
         }
     }
 
-    const dicomVolume: DicomVolume = {
+    const dicomVolume: Volume = {
         nx: nx,
         ny: ny,
         nz: nz,
@@ -96,7 +100,6 @@ export const generateDicomVolumeFromDicom = (dcmList: MyDataSet[]) => {
         vectorZ: vz,
         voxel: vox,
     };
-
 
     return dicomVolume;
 }
