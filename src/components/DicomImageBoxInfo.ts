@@ -76,15 +76,13 @@ export const pushVolume = (seriesList: any, volume: any) => {
         description: "phantom",
         currentSeriesNumber: n,
         centerInWorld: p0,
-        vecx: d.vectorX.clone().multiplyScalar(0.3),
-        vecy: d.vectorY.clone().multiplyScalar(0.3),
+        vecx: d.vectorX.clone().multiplyScalar(1),
+        vecy: d.vectorY.clone().multiplyScalar(1),
         vecz: d.vectorZ.clone().multiplyScalar(1),
         isMip: false,
         mip: null,
     };
 
     return c;
-
-
 }
 

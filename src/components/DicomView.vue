@@ -1,20 +1,18 @@
 <script setup lang="ts">
 
 //5/21 今後付け加える機能
-// 画像をクローズするボタン
 // backup用の別URL
 // ここまでを常田先生の講義(6/27)に間に合わせたい
 //
+// fusion
 // シリーズ切り替えコンボボックス
 // 学生用にpixel mappingやマウス下のCT値を表示するシステム
 // DicomView.vueが肥大化しているので他ファイルに分散
-// 画像をもっと大きくしたいので、サイドバーを隠したり画像サイズをレスポンシブに
-// fusion
 // Nrrdも
 // 1つでもエラーの出るファイルがあると開けない
 // 上下さかさま　spinal tumor
 // できれば位置合わせ　ブラウザ上で果たして出来るか
-// 断面支持線
+// 断面指示線
 // ROIツール
 //
 // MIP/surfaceMIP -> done
@@ -24,6 +22,8 @@
 // pagingボタン、シリーズ切り替えボタン -> done
 // 2Dの表示、右上に -> done
 // スライス←→ボタンがsyncに対応していない -> done
+// 画像をクローズするボタン -> done
+// 画像をもっと大きくしたいので、サイドバーを隠したり画像サイズをレスポンシブに -> done
 //
 // PNGを読み込めるように→ボツ
 
@@ -552,15 +552,16 @@ const worldToVoxel_ = (p: THREE.Vector3, vol_id:number) => {
   return worldToVoxel(p,v);
 }
 
-const changeSuv = (a:number,b:number) => {
+const changeSuv = (a:number,b:number, doShow: boolean) => {
   for (let i=0; i<imageBoxInfos.value.length; i++){
     setMyWCWW(i, (a+b)/2, b-a);
   }
-  show();
+  if (doShow){
+    show();
+  }
 }
 
-
-const mpr = () => {
+const mpr = (doShow: boolean) => {
 
   const i = imageBoxInfos.value[selectedImageBoxId.value].currentSeriesNumber;
   const d = generateVolumeFromDicom(seriesList[i].myDicom!);
@@ -584,18 +585,67 @@ const mpr = () => {
     mip: null,
   } as VolumeImageBoxInfo;
 
+  if (doShow){
+    show();
+  }
+
+}
+
+const findMaximumAxis = (v: THREE.Vector3) => {
+  if (v.x>v.y && v.x>v.z){
+    return 0;
+  }
+  else if (v.y>v.x && v.y>v.z){
+    return 1;
+  }
+  else{
+    return 2
+  }
+}
+
+const determinePlaneDirection = (d: VolumeImageBoxInfo) => {
+  if (findMaximumAxis(d.vecx)===0 && findMaximumAxis(d.vecy)===1){
+    return "axial";
+  }
+  else if (findMaximumAxis(d.vecx)===0 && findMaximumAxis(d.vecy)===2){
+    return "coronal";
+  }
+  else if (findMaximumAxis(d.vecx)===1 && findMaximumAxis(d.vecy)===2){
+    return "sagittal";
+  }
+  else return "unknown";
 }
 
 
-const switchToAxial = () => {
+const switchToAxial = (doShow: boolean) => {
   const d = getSelectedInfo();
-  const temp = d.vecy;
-  d.vecy = d.vecz;
-  d.vecy.normalize().multiplyScalar(d.vecx.length());
-  d.vecz = temp;
+  if (determinePlaneDirection(d)=="coronal"){
+    const temp = d.vecy;
+    d.vecy = d.vecz;
+    d.vecy.normalize().multiplyScalar(d.vecx.length());
+    d.vecz = temp;
+    if (doShow){
+      show();
+    }
+  }
 }
 
-const reverse = () => {
+const switchToCoronal = (doShow: boolean) => {
+  debugger;
+  const d = getSelectedInfo();
+  if (determinePlaneDirection(d)=="axial"){
+    const temp = d.vecy;
+    d.vecy = d.vecz;
+    d.vecy.normalize().multiplyScalar(d.vecx.length());
+    d.vecz = temp;
+    if (doShow){
+      show();
+    }
+  }
+}
+
+
+const reverse = (doShow: boolean) => {
   const d = getSelectedInfo();
   if (d.clut == 0) d.clut = 1;
   else if (d.clut == 1) d.clut = 0;
@@ -603,30 +653,54 @@ const reverse = () => {
   else if (d.clut == 3) d.clut = 2;
   else if (d.clut == 4) d.clut = 5;
   else if (d.clut == 5) d.clut = 4;
+  if (doShow){
+    show();
+  }
 }
 
-const switchToMonochrome = () => { getSelectedInfo().clut=0; }
-const switchToRainbow = () => { getSelectedInfo().clut=2;}
-const switchToHot = () => { getSelectedInfo().clut=4;}
+const switchToMonochrome = (doShow: boolean) => { 
+  getSelectedInfo().clut=0;
+  if (doShow){
+    show();
+  }
+}
+const switchToRainbow = (doShow: boolean) => {
+   getSelectedInfo().clut=2;
+   if (doShow){
+    show();
+  }
+}
+const switchToHot = (doShow: boolean) => { 
+  getSelectedInfo().clut=4;
+  if (doShow){
+    show();
+  }
+}
 
-const switchToMip = () => {
+const switchToMip = (doShow: boolean) => {
   const d = getSelectedInfo();
-  d.isMip = !d.isMip;
-  if (d.isMip && d.mip == null){
+  d.isMip = true;
+  if (d.mip == null){
     d.mip = {
       mipAngle: 0,
       isSurface: false,
       thresholdSurfaceMip: 0.3,
       depthSurfaceMip: 3,
     }
+  }else{
+    d.mip.isSurface = false;
+  }
+  if (doShow){
+    show();
   }
 }
 
-const switchToSMip = () => {
+const switchToSMip = (doShow: boolean) => {
   const d = getSelectedInfo();
-  if (!d.isMip) switchToMip();
-  if (d.mip != null){
-    d.mip.isSurface = !d.mip?.isSurface;
+  if (!d.isMip) switchToMip(false);
+  d.mip!.isSurface = true;
+  if (doShow){
+    show();
   }
 }
 
@@ -644,12 +718,10 @@ const phantom2 = () => {
 }
 
 const phantom3 = () => {
-  debugger;
-
   const P = Phantom.generatePhantom3();
   const c = pushVolume(seriesList, P);
   imageBoxInfos.value[selectedImageBoxId.value] = c;
-  show();
+  switchToSMip(true);
 }
 
 const runDebugger = () => {
@@ -673,10 +745,10 @@ const runDebugger = () => {
             @changeSlice="changeSlice_"
             @changeSeries="changeSeries"
             @mpr="mpr"
-            @axi="switchToAxial"
-            @cor="switchToAxial"
-            @mip="switchToMip"
-            @smip="switchToSMip"
+            @axi="switchToAxial(true)"
+            @cor="switchToCoronal(true)"
+            @mip="switchToMip(true)"
+            @smip="switchToSMip(true)"
             @monochrome="switchToMonochrome"
             @rainbow="switchToRainbow"
             @hot="switchToHot"

@@ -105,9 +105,9 @@ const changeSlice = (e:number) => emit("changeSlice", e);
       <h3>Demo</h3>
     </v-row>
     <v-row>
-      <v-btn @click="emit('phantom1')">1</v-btn>
-      <v-btn @click="emit('phantom2')">2</v-btn>
-      <v-btn @click="emit('phantom3')">3</v-btn>
+      <v-btn @click="emit('phantom3')">Earth</v-btn>
+      <v-btn @click="emit('phantom1')">Humanoid</v-btn>
+      <v-btn @click="emit('phantom2')">Voronoi</v-btn>
     </v-row>
 
   </v-container>
