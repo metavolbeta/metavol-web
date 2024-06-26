@@ -32,7 +32,7 @@ import { DataSet, parseDicom } from "dicom-parser";
 import * as DicomLib from './dicomLib.ts';
 import sidebar from "./Sidebar.vue";
 import imagebox from "./ImageBox.vue";
-import { ImageBoxInfoBase, DicomImageBoxInfo, VolumeImageBoxInfo, defaultInfo, pushVolume } from "./DicomImageBoxInfo";
+import { ImageBoxInfoBase, DicomImageBoxInfo, VolumeImageBoxInfo, defaultInfo, pushVolume, FusedVolumeImageBoxInfo } from "./DicomImageBoxInfo";
 import { getAllFilesRecursive } from "./DragAndDropUtil";
 import { generateVolumeFromDicom } from './dicom2volume.ts';
 import * as DecompressJpegLossless from "./decompressJpegLossless";
@@ -110,6 +110,10 @@ const getVolumeImageBoxInfo = (index: number) => imageBoxInfos.value[index] as V
 const isDicomImageBoxInfo = (i:number) => {
   return "currentSliceNumber" in imageBoxInfos.value[i]; //この方法では、プロパティ名を変更したときにバグった。
 }
+const isVolumeImageBoxInfo = (i:number) => {
+  return ("clut" in imageBoxInfos.value[i]) && !("clut1" in imageBoxInfos.value[i]); //この方法では、プロパティ名を変更したときにバグった。
+}
+
 const getSelectedInfo = () => getVolumeImageBoxInfo(selectedImageBoxId.value);
 
 type LeftButtonFunction = "window" | "pan" | "zoom" | "page";
@@ -157,6 +161,10 @@ const setMyWCWW = (i:number, wc:number | null, ww: number | null) => {
 
 const getMyWCWW = (i:number) => {
   return [imageBoxInfos.value[i].myWC, imageBoxInfos.value[i].myWW];
+}
+const getMyWCWW1 = (i:number) => {
+  const info = (imageBoxInfos.value[i] as FusedVolumeImageBoxInfo);
+  return [info.myWC1, info.myWW1];
 }
 
 const presetSelected = (e: string) => {
@@ -506,7 +514,7 @@ const showImage = (i:number) => {
       console.log("Error parsing byte stream", ex);
     }
   }
-  else{
+  else if (isVolumeImageBoxInfo(i)){
     const info = info1 as VolumeImageBoxInfo;
 
     const j = info.currentSeriesNumber;
@@ -522,13 +530,51 @@ const showImage = (i:number) => {
     const clut = cluts[info.clut];
 
     if (!info.isMip){
-      imb.value![i].drawNiftiSlice(pixelData0,nx,ny,nz, wc!, ww!, p00,v01,v10,clut);
-    }else{
+        imb.value![i].drawNiftiSlice(pixelData0,nx,ny,nz, wc!, ww!, p00,v01,v10,clut);
+      }else{
       const angle = info.mip!.mipAngle;
       imb.value![i].drawNiftiMip(pixelData0,nx,ny,nz, wc!, ww!, p00,v01,v10,
         angle, info.mip!.thresholdSurfaceMip, info.mip!.depthSurfaceMip, clut,
         info.mip!.isSurface);
-    }
+      }
+  }else{ // fusion
+    const info = info1 as FusedVolumeImageBoxInfo;
+
+    const j0 = info.currentSeriesNumber;
+    const j1 = info.currentSeriesNumber1;
+
+    const dv0 = seriesList[j0].volume!;
+    const dv1 = seriesList[j1].volume!;
+
+    const pixelData0 = dv0.voxel;
+    const pixelData1 = dv1.voxel;
+
+    const nx0 = dv0.nx;
+    const ny0 = dv0.ny;
+    const nz0 = dv0.nz;
+    const nx1 = dv1.nx;
+    const ny1 = dv1.ny;
+    const nz1 = dv1.nz;
+
+    const [wc0,ww0] = getMyWCWW(i);
+    const [wc1,ww1] = getMyWCWW1(i);
+
+    const p00_0 = worldToVoxel_(screenToWorld(i,0,0),j0);
+    const v01_0 = worldToVoxel_(screenToWorld(i,0,1),j0).sub(p00_0);
+    const v10_0 = worldToVoxel_(screenToWorld(i,1,0),j0).sub(p00_0);
+
+    const p00_1 = worldToVoxel_(screenToWorld(i,0,0),j1);
+    const v01_1 = worldToVoxel_(screenToWorld(i,0,1),j1).sub(p00_1);
+    const v10_1 = worldToVoxel_(screenToWorld(i,1,0),j1).sub(p00_1);
+
+    const clut0 = cluts[info.clut];
+    const clut1 = cluts[info.clut1];
+
+    imb.value![i].drawNiftiSliceFusion(
+      pixelData0, nx0,ny0,nz0, wc0!, ww0!, p00_0,v01_0,v10_0,clut0,
+      pixelData1, nx1,ny1,nz1, wc1!, ww1!, p00_1,v01_1,v10_1,clut1,
+    );
+
   }
 };
 
@@ -561,9 +607,7 @@ const changeSuv = (a:number,b:number, doShow: boolean) => {
   }
 }
 
-const mpr = (doShow: boolean) => {
-
-  const i = imageBoxInfos.value[selectedImageBoxId.value].currentSeriesNumber;
+const mpr_ = (i: number) => {
   const d = generateVolumeFromDicom(seriesList[i].myDicom!);
   seriesList[i].volume = d;
 
@@ -571,7 +615,7 @@ const mpr = (doShow: boolean) => {
   const p1 = voxelToWorld_(new THREE.Vector3(d.nx,d.ny, d.nz),i);
   p0.add(p1).divideScalar(2); // 中点
 
-  imageBoxInfos.value[selectedImageBoxId.value] = {
+  imageBoxInfos.value[i] = {
     clut: 0,
     myWC: 3,
     myWW: 6,
@@ -585,11 +629,45 @@ const mpr = (doShow: boolean) => {
     mip: null,
   } as VolumeImageBoxInfo;
 
+}
+
+
+const mpr = (doShow: boolean) => {
+
+  const i = imageBoxInfos.value[selectedImageBoxId.value].currentSeriesNumber;
+  mpr_(i);
   if (doShow){
     show();
   }
 
 }
+
+const fusion = () => {
+
+  mpr_(0);
+  mpr_(1);
+  const info = (imageBoxInfos.value[1] as VolumeImageBoxInfo) as VolumeImageBoxInfo;
+
+  imageBoxInfos.value![0] = {
+    centerInWorld: info.centerInWorld,
+    vecx: info.vecx,
+    vecy: info.vecy,
+    vecz: info.vecz,
+    clut: 2, // white-black
+    clut1: 0, // rainbow
+    currentSeriesNumber: 0,
+    currentSeriesNumber1: 1,
+    description: "fusion",
+    myWC: 3,
+    myWW: 6,
+    myWC1: 40,
+    myWW1: 340,
+  } as FusedVolumeImageBoxInfo;
+
+  show();
+
+}
+
 
 const findMaximumAxis = (v: THREE.Vector3) => {
   if (v.x>v.y && v.x>v.z){
@@ -728,6 +806,12 @@ const runDebugger = () => {
   console.log(innerWidth);
 };
 
+const maximize = () => {
+  const hello = document.getElementById("hello");
+  debugger;
+  imageBoxW.value=hello!.scrollWidth! / 2 - 10;
+}
+
 
 
 </script>
@@ -744,7 +828,7 @@ const runDebugger = () => {
             @presetSelected="presetSelected"
             @changeSlice="changeSlice_"
             @changeSeries="changeSeries"
-            @mpr="mpr"
+            @mpr="mpr(true)"
             @axi="switchToAxial(true)"
             @cor="switchToCoronal(true)"
             @mip="switchToMip(true)"
@@ -756,17 +840,17 @@ const runDebugger = () => {
             @phantom1="phantom1"
             @phantom2="phantom2"
             @phantom3="phantom3"
+            @fusion="fusion"
+            @maximize="maximize"
           ></sidebar>
         
-        <v-switch label="Show summary" v-model="showSummary" style="padding-top: 36px;" hide-details></v-switch>
-        <v-switch label="Show tag" v-model="showTag" hide-details></v-switch>
 
       </v-container>
         
       </v-navigation-drawer>
 
       <v-col>
-        <v-row no-gutters>
+        <v-row no-gutters id="hello">
           <v-col cols="auto" v-for="i in tileN" >
             <imagebox :class="{'cursor-grab': leftButtonFunction==='pan'}" ref="imb" :imageBoxId="i-1"
              :width="imageBoxW" :height="imageBoxH" @wheel.prevent="wheel"

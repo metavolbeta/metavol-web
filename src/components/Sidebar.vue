@@ -22,6 +22,8 @@ const emit = defineEmits([
   "phantom1",
   "phantom2",
   "phantom3",
+  "fusion",
+  "maximize",
 ]);
 
 // const leftButtonFunction = ref('none');
@@ -41,6 +43,9 @@ const presetClicked = (e:string) => emit("presetSelected", e);
 const changeSeries = (e:number) => emit("changeSeries", e);
 const changeSlice = (e:number) => emit("changeSlice", e);
 
+const showUnderConstruction = ref(false);
+const showSummary = ref(false);
+const showTag = ref(false);
 
 </script>
 
@@ -109,6 +114,17 @@ const changeSlice = (e:number) => emit("changeSlice", e);
       <v-btn @click="emit('phantom1')">Humanoid</v-btn>
       <v-btn @click="emit('phantom2')">Voronoi</v-btn>
     </v-row>
+
+    <v-row style="padding-top: 9px;">
+      <v-checkbox label="Under construction" v-model="showUnderConstruction"></v-checkbox>
+    </v-row>
+    <v-row v-if="showUnderConstruction">
+      <v-btn @click="emit('fusion')">Fusion</v-btn>
+      <v-btn @click="emit('maximize')">Maximize</v-btn>
+      <v-switch label="Show summary" v-model="showSummary" style="padding-top: 36px;" hide-details></v-switch>
+      <v-switch label="Show tag" v-model="showTag" hide-details></v-switch>
+    </v-row>
+
 
   </v-container>
 

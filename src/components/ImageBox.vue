@@ -139,6 +139,66 @@ const drawNiftiSlice = async function(pix: Float32Array | Int16Array,
   showTextTopRight("3D");
 }
 
+const drawNiftiSliceFusion = async function(pix0: Float32Array | Int16Array,
+    nx0:number, ny0:number, nz0:number, wc0:number, ww0:number,
+    p00_0:THREE.Vector3, v01_0:THREE.Vector3,v10_0:THREE.Vector3, clut0: number[][],
+    pix1: Float32Array | Int16Array,
+    nx1:number, ny1:number, nz1:number, wc1:number, ww1:number,
+    p00_1:THREE.Vector3, v01_1:THREE.Vector3,v10_1:THREE.Vector3, clut1: number[][],
+  ) {
+
+      if (cv1.value === null || ctx === null) return;
+      const canvasx = cv1.value.width;
+      const canvasy = cv1.value.height;
+      const myImageData = ctx.getImageData(0,0,canvasx,canvasy); // メモリーを新たに確保しないので、createImageDataよりも有利だと思う（想像）
+      let ad = 0;
+
+      for (let i = 0; i<canvasy; i++){
+        let v_0 = p00_0.clone().addScaledVector(v01_0,i);
+        let v_1 = p00_1.clone().addScaledVector(v01_1,i);
+        for (let j = 0; j<canvasx; j++){
+
+          const v0_0 = v_0.clone().floor();
+          const v0_1 = v_1.clone().floor();
+
+          if (v0_0.x >= 0 && v0_0.x < nx0 && v0_0.y >= 0 && v0_0.y < ny0 && v0_0.z >= 0 && v0_0.z < nz0){
+            const raw = pix0[ny0*nx0*v0_0.z+nx0*v0_0.y+v0_0.x];
+            let p = Math.floor((raw-(wc0-ww0/2)) * (255/ww0));
+            if (p<0) p=0;
+            if (p>255) p=255;
+            myImageData.data[ad] = clut0[p][0] * 0.5; //red
+            myImageData.data[ad+1] = clut0[p][1] * 0.5; //green
+            myImageData.data[ad+2] = clut0[p][2] * 0.5; //blue
+          }else{
+            myImageData.data[ad] = clut0[0][0] * 0.5;
+            myImageData.data[ad+1] = clut0[0][1] * 0.5;
+            myImageData.data[ad+2] = clut0[0][2] * 0.5;
+          }
+
+          if (v0_1.x >= 0 && v0_1.x < nx1 && v0_1.y >= 0 && v0_1.y < ny1 && v0_1.z >= 0 && v0_1.z < nz1){
+            const raw = pix1[ny1*nx1*v0_1.z+nx1*v0_1.y+v0_1.x];
+            let p = Math.floor((raw-(wc1-ww1/2)) * (255/ww1));
+            if (p<0) p=0;
+            if (p>255) p=255;
+            myImageData.data[ad] += clut1[p][0] * 0.5; //red
+            myImageData.data[ad+1] += clut1[p][1] * 0.5; //green
+            myImageData.data[ad+2] += clut1[p][2] * 0.5; //blue
+          }else{
+            myImageData.data[ad] += clut1[0][0] * 0.5;
+            myImageData.data[ad+1] += clut1[0][1] * 0.5;
+            myImageData.data[ad+2] += clut1[0][2] * 0.5;
+          }
+
+          ad += 4;
+          v_0.add(v10_0);
+          v_1.add(v10_1);
+        }
+      }
+
+  ctx.putImageData(myImageData, 0,0,0,0,canvasx, canvasy);
+  showTextTopRight("Fused");
+}
+
 // let mipDataSet: Float32Array[] = new Float32Array[];
 
 const drawNiftiMip = async function(pix: Float32Array | Int16Array,
@@ -428,7 +488,7 @@ const showTextBottomLeft = (text: string) => {
 
 
 defineExpose({init, show, show2, showRgb, showDirect,
-   drawNiftiSlice, drawNiftiMip, clear});
+   drawNiftiSlice, drawNiftiSliceFusion, drawNiftiMip, clear});
 
 </script>
 

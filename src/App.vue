@@ -11,7 +11,7 @@
           </h1>
 
           <!-- <v-checkbox>Hello</v-checkbox> -->
-          <v-switch class="d-inline mr-5" label="Synchronize" base-color="brown-darken-1" color="brown-lighten-4" v-model="syncImageBox" style="padding-top: 18px;"></v-switch>
+          <v-switch class="d-inline mr-5" label="Synchronize" base-color="brown-darken-2" color="orange-lighten-1" v-model="syncImageBox" style="padding-top: 18px;"></v-switch>
 
           <v-btn-toggle  class="mr-5" v-model="leftButtonFunction" base-color="brown-darken-3" color="brown-darken-2" divided>
               <v-btn value="window" >

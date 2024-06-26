@@ -38,6 +38,12 @@ export type VolumeImageBoxInfo = ImageBoxInfoBase & {
     } | null,
 }
 
+export type FusedVolumeImageBoxInfo = VolumeImageBoxInfo & {
+    currentSeriesNumber1: number,
+    clut1: number,
+    myWC1: number | null,
+    myWW1: number | null,
+}
 
 export const defaultInfo = (i: number) => {
     return {
