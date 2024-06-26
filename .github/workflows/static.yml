@@ -2,7 +2,7 @@
 name: Deploy static content to Pages
 
 on:
-  # デフォルトブランチを対象としたプッシュ時にで実行されます111
+  # デフォルトブランチを対象としたプッシュ時にで実行されます
   push:
     branches: ['main']
 
