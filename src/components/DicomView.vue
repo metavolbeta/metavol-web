@@ -1,10 +1,8 @@
 <script setup lang="ts">
 
 //5/21 今後付け加える機能
-// backup用の別URL
-// ここまでを常田先生の講義(6/27)に間に合わせたい
 //
-// fusion
+// fusion -> プロトタイプ完成 -> 機能性を高める
 // シリーズ切り替えコンボボックス
 // 学生用にpixel mappingやマウス下のCT値を表示するシステム
 // DicomView.vueが肥大化しているので他ファイルに分散
@@ -14,6 +12,8 @@
 // できれば位置合わせ　ブラウザ上で果たして出来るか
 // 断面指示線
 // ROIツール
+// DICOMの情報表示ボタン
+//
 //
 // MIP/surfaceMIP -> done
 // Niftiの読み込み -> done
@@ -24,8 +24,10 @@
 // スライス←→ボタンがsyncに対応していない -> done
 // 画像をクローズするボタン -> done
 // 画像をもっと大きくしたいので、サイドバーを隠したり画像サイズをレスポンシブに -> done
+// backup用の別URL -> done
+// ここまでを常田先生の講義(2024/6/27)に間に合わせた
 //
-// PNGを読み込めるように→ボツ
+// PNGを読み込めるように->→ボツ->かわりにPNGをDICOM変換して対応した -> done
 
 import { ref, watch } from "vue";
 import { DataSet, parseDicom } from "dicom-parser";
@@ -709,7 +711,6 @@ const switchToAxial = (doShow: boolean) => {
 }
 
 const switchToCoronal = (doShow: boolean) => {
-  debugger;
   const d = getSelectedInfo();
   if (determinePlaneDirection(d)=="axial"){
     const temp = d.vecy;
@@ -756,6 +757,8 @@ const switchToHot = (doShow: boolean) => {
 }
 
 const switchToMip = (doShow: boolean) => {
+  switchToCoronal(false);
+
   const d = getSelectedInfo();
   d.isMip = true;
   if (d.mip == null){
