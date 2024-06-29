@@ -125,7 +125,6 @@ const showTag = ref(false);
       <v-switch label="Show tag" v-model="showTag" hide-details></v-switch>
     </v-row>
 
-
   </v-container>
 
 </template>

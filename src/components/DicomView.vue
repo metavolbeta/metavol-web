@@ -48,7 +48,8 @@ import {cluts} from './Clut.ts';
 import * as nifti from 'nifti-reader-js';
 import * as Phantom from './phantom.ts';
 
-
+const showPerformance = ref("");
+const benchmarkMessage = ref("");
 const closingImages = defineModel<boolean>("closingImages");
 const drawer = defineModel<boolean>("drawer");
 const leftButtonFunction = defineModel<LeftButtonFunction>("leftButtonFunction");
@@ -451,6 +452,7 @@ const show = () => {
 };
 
 const showImage = (i:number) => {
+  const t0 = performance.now();
 
   const info1 = imageBoxInfos.value[i];
 
@@ -582,6 +584,10 @@ const showImage = (i:number) => {
     );
 
   }
+
+  const t1 = performance.now();
+  benchmarkMessage.value += `${String(t1-t0)}\n`;
+
 };
 
 const screenToWorld = (imageBoxNumber: number, x: number, y:number) => {
@@ -850,8 +856,10 @@ const maximize = () => {
             @phantom3="phantom3"
             @fusion="fusion"
             @maximize="maximize"
+            :benchmark = "benchmarkMessage"
           ></sidebar>
-        
+          <v-checkbox label="Performance" v-model="showPerformance"></v-checkbox>
+          <p v-if="showPerformance">{{ benchmarkMessage }}</p>
 
       </v-container>
         
