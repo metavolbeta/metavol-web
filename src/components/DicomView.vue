@@ -1,10 +1,10 @@
 <script setup lang="ts">
 
-//5/21 今後付け加える機能
-//
+//6/29 今後付け加える機能
+// 描画時間を測定する機能　いろいろなPCでのパフォーマンスを比較したい
 // fusion -> プロトタイプ完成 -> 機能性を高める
+// bilinear interpolation
 // シリーズ切り替えコンボボックス
-// 学生用にpixel mappingやマウス下のCT値を表示するシステム
 // DicomView.vueが肥大化しているので他ファイルに分散
 // Nrrdも
 // 1つでもエラーの出るファイルがあると開けない
@@ -13,6 +13,10 @@
 // 断面指示線
 // ROIツール
 // DICOMの情報表示ボタン
+//
+// 優先順位は低い
+// Windowを説明するためのグラデーションデモ
+// 上記と合わせて、学生用にpixel mappingやマウス下のCT値を表示するシステム
 //
 //
 // MIP/surfaceMIP -> done
@@ -801,6 +805,7 @@ const phantom2 = () => {
 const phantom3 = () => {
   const P = Phantom.generatePhantom3();
   const c = pushVolume(seriesList, P);
+  c.clut=2;
   imageBoxInfos.value[selectedImageBoxId.value] = c;
   switchToSMip(true);
 }
