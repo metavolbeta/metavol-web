@@ -30,6 +30,10 @@
                 <v-icon icon="mdi-arrow-up-down"></v-icon>
                 <v-tooltip activator="parent" location="bottom">Page</v-tooltip>
               </v-btn>
+              <v-btn value="roi">
+                <v-icon icon="mdi-arrow-up-down"></v-icon>
+                <v-tooltip activator="parent" location="bottom">ROI</v-tooltip>
+              </v-btn>
              </v-btn-toggle>
 
           <v-btn class="myBtn ml-12" @click="changeImageBoxSize(-100)">
@@ -102,7 +106,7 @@ const closingImages = ref(false);
 
 const tileN = ref(getTileN());
 
-const syncImageBox = ref(true);
+const syncImageBox = ref(false);
 
 const changeImageBoxSize = (d: number) => {
   let a = imageBoxH.value;

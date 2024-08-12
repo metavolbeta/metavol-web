@@ -106,36 +106,44 @@ const drawNiftiSlice = async function(pix: Float32Array | Int16Array,
     nx:number, ny:number, nz:number, wc:number, ww:number,
     p00:THREE.Vector3, v01:THREE.Vector3,v10:THREE.Vector3, clut: number[][]) {
 
-      if (cv1.value === null || ctx === null) return;
-      const canvasx = cv1.value.width;
-      const canvasy = cv1.value.height;
-      const myImageData = ctx.getImageData(0,0,canvasx,canvasy); // メモリーを新たに確保しないので、createImageDataよりも有利だと思う（想像）
-      let ad = 0;
+  if (cv1.value === null || ctx === null) return;
+  const canvasx = cv1.value.width;
+  const canvasy = cv1.value.height;
+  const myImageData = ctx.getImageData(0,0,canvasx,canvasy); // メモリーを新たに確保しないので、createImageDataよりも有利だと思う（想像）
+  let ad = 0;
 
-      for (let i = 0; i<canvasy; i++){
-        let v = p00.clone().addScaledVector(v01,i);
-        for (let j = 0; j<canvasx; j++){
+  for (let i = 0; i<canvasy; i++){
+    let v = p00.clone().addScaledVector(v01,i);
+    for (let j = 0; j<canvasx; j++){
 
-          const v0 = v.clone().floor();
-          if (v0.x>=0 && v0.x<nx && v0.y>=0 && v0.y<ny && v0.z>=0 && v0.z<nz){
-            const raw = pix[ny*nx*v0.z+nx*v0.y+v0.x];
-            let p = Math.floor((raw-(wc-ww/2)) * (255/ww));
-            if (p<0) p=0;
-            if (p>255) p=255;
-            myImageData.data[ad] = clut[p][0]; //red
-            myImageData.data[ad+1] = clut[p][1]; //green
-            myImageData.data[ad+2] = clut[p][2]; //blue
-          }else{
-            myImageData.data[ad] = clut[0][0];
-            myImageData.data[ad+1] = clut[0][1];
-            myImageData.data[ad+2] = clut[0][2];
-          }
-          ad += 4;
-          v.add(v10);
-        }
+      const v0 = v.clone().floor();
+      if (v0.x>=0 && v0.x<nx && v0.y>=0 && v0.y<ny && v0.z>=0 && v0.z<nz){
+        const raw = pix[ny*nx*v0.z+nx*v0.y+v0.x];
+        let p = Math.floor((raw-(wc-ww/2)) * (255/ww));
+        if (p<0) p=0;
+        if (p>255) p=255;
+        myImageData.data[ad] = clut[p][0]; //red
+        myImageData.data[ad+1] = clut[p][1]; //green
+        myImageData.data[ad+2] = clut[p][2]; //blue
+      }else{
+        myImageData.data[ad] = clut[0][0];
+        myImageData.data[ad+1] = clut[0][1];
+        myImageData.data[ad+2] = clut[0][2];
       }
+      ad += 4;
+      v.add(v10);
+    }
+  }
 
   ctx.putImageData(myImageData, 0,0,0,0,canvasx, canvasy);
+
+  ctx.beginPath(); // パスの初期化
+  ctx.arc(100, 50, 30, 0, 2 * Math.PI); // (100, 50)の位置に半径30pxの円
+  ctx.closePath(); // パスを閉じる
+  ctx.strokeStyle = "red";
+  ctx.stroke(); // 軌跡の範囲を塗りつぶす
+
+
   showTextTopRight("3D");
 }
 
@@ -316,7 +324,7 @@ const drawNiftiMip = async function(pix: Float32Array | Int16Array,
 
   ctx.putImageData(myImageData, 0,0,0,0,canvasx, canvasy);
   const time4 = performance.now();
-  // console.log(time1-time0, time2-time1, time3-time2, time4-time3);
+  console.log(time1-time0, time2-time1, time3-time2, time4-time3);
 
   if (isSurface){
     showTextTopRight("sMIP");

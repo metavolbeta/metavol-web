@@ -1,7 +1,9 @@
 <script setup lang="ts">
 
 //6/29 今後付け加える機能
-// 描画時間を測定する機能　いろいろなPCでのパフォーマンスを比較したい
+// ctrl + wheelで拡大縮小
+// ROIツール ROIツールへの切り替えのボタン、球体の表示、値の抽出、テスト用の画像書き換え
+// 
 // fusion -> プロトタイプ完成 -> 機能性を高める
 // bilinear interpolation
 // シリーズ切り替えコンボボックス
@@ -11,7 +13,6 @@
 // 上下さかさま　spinal tumor
 // できれば位置合わせ　ブラウザ上で果たして出来るか
 // 断面指示線
-// ROIツール
 // DICOMの情報表示ボタン
 //
 // 優先順位は低い
@@ -32,6 +33,10 @@
 // ここまでを常田先生の講義(2024/6/27)に間に合わせた
 //
 // PNGを読み込めるように->→ボツ->かわりにPNGをDICOM変換して対応した -> done
+// 描画時間を測定する機能　いろいろなPCでのパフォーマンスを比較したい -> done
+//
+
+
 
 import { ref, watch } from "vue";
 import { DataSet, parseDicom } from "dicom-parser";
@@ -123,7 +128,7 @@ const isVolumeImageBoxInfo = (i:number) => {
 
 const getSelectedInfo = () => getVolumeImageBoxInfo(selectedImageBoxId.value);
 
-type LeftButtonFunction = "window" | "pan" | "zoom" | "page";
+type LeftButtonFunction = "window" | "pan" | "zoom" | "page" | "roi";
 // const leftButtonFunction = ref<LeftButtonFunction>("none");
 const leftButtonFunctionChanged = (e: LeftButtonFunction) => {
   leftButtonFunction.value = e;
@@ -271,6 +276,29 @@ const mouseMove = (e: MouseEvent) => {
       });
     }
   }
+
+  if (leftButtonFunction.value == "roi") {
+    if (e.buttons == 1) {
+
+      const p = screenToWorld(0, e.offsetX, e.offsetY);
+      const q = worldToVoxel_(p,0);
+
+      debugger;
+
+      const x0 = Math.floor(q.x);
+      const y0 = Math.floor(q.y);
+      const z0 = Math.floor(q.z);
+      const v = seriesList[0].volume!;
+      v.voxel[x0+y0*v.nx+z0*v.nx*v.ny] = 0;
+
+      showImage(0);
+
+    }
+
+  }
+
+
+
 }
 
 const wheel = (e: WheelEvent) => {
@@ -591,9 +619,7 @@ const showImage = (i:number) => {
 };
 
 const screenToWorld = (imageBoxNumber: number, x: number, y:number) => {
-
   // 今はVolumeのときしか対応していないが、理論的にはDicomにも対応できる。
-
   const world = new THREE.Vector3(0,0,0);
   const a = imageBoxInfos.value[imageBoxNumber] as VolumeImageBoxInfo;
   world.add(a.centerInWorld).addScaledVector(a.vecx,x-imageBoxW.value!/2).addScaledVector(a.vecy,y-imageBoxH.value!/2);
