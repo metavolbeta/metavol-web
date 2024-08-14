@@ -104,7 +104,8 @@ const drawImageCvDirect = async function(pix: Float32Array | Int16Array, wc:numb
 
 const drawNiftiSlice = async function(pix: Float32Array | Int16Array,
     nx:number, ny:number, nz:number, wc:number, ww:number,
-    p00:THREE.Vector3, v01:THREE.Vector3,v10:THREE.Vector3, clut: number[][]) {
+    p00:THREE.Vector3, v01:THREE.Vector3,v10:THREE.Vector3, clut: number[][],
+  ) {
 
   if (cv1.value === null || ctx === null) return;
   const canvasx = cv1.value.width;
@@ -143,6 +144,8 @@ const drawNiftiSlice = async function(pix: Float32Array | Int16Array,
   ctx.strokeStyle = "red";
   ctx.stroke(); // 軌跡の範囲を塗りつぶす
 
+
+  // new THREE.Sphere(THREE.Vector3(100,50,))
 
   showTextTopRight("3D");
 }

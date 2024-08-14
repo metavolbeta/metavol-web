@@ -1,7 +1,6 @@
 <script setup lang="ts">
 
 //6/29 今後付け加える機能
-// ctrl + wheelで拡大縮小
 // ROIツール ROIツールへの切り替えのボタン、球体の表示、値の抽出、テスト用の画像書き換え
 // 
 // fusion -> プロトタイプ完成 -> 機能性を高める
@@ -20,6 +19,9 @@
 // 上記と合わせて、学生用にpixel mappingやマウス下のCT値を表示するシステム
 //
 //
+// ctrl + wheelで拡大縮小 -> done
+// center button でpan -> done
+// デフォルトでsync off -> done
 // MIP/surfaceMIP -> done
 // Niftiの読み込み -> done
 // rainbowCLUTが遅い -> done
@@ -259,22 +261,21 @@ const mouseMove = (e: MouseEvent) => {
     }
   }
 
-  if (leftButtonFunction.value == "pan") {
-    if (e.buttons == 1) {
-      doOneOrAll(id, (i:number) => {
-        if (isDicomImageBoxInfo(id)){
-          const zoom = info(i).zoom!;
-          info(i).centerX -= e.movementX / zoom;
-          info(i).centerY -= e.movementY / zoom;
-        }else{
-          const a = infoV(i);
-          infoV(i).centerInWorld.x -= (e.movementX * a.vecx.x + e.movementY * a.vecy.x);
-          a.centerInWorld.y -= (e.movementX * a.vecx.y + e.movementY * a.vecy.y);
-          a.centerInWorld.z -= (e.movementX * a.vecx.z + e.movementY * a.vecy.z);
-        }
-        showImage(i);
-      });
-    }
+  if (leftButtonFunction.value == "pan" && e.buttons == 1 || e.buttons == 4) { //1が左クリックで4がホイールボタン
+
+    doOneOrAll(id, (i:number) => {
+      if (isDicomImageBoxInfo(id)){
+        const zoom = info(i).zoom!;
+        info(i).centerX -= e.movementX / zoom;
+        info(i).centerY -= e.movementY / zoom;
+      }else{
+        const a = infoV(i);
+        infoV(i).centerInWorld.x -= (e.movementX * a.vecx.x + e.movementY * a.vecy.x);
+        a.centerInWorld.y -= (e.movementX * a.vecx.y + e.movementY * a.vecy.y);
+        a.centerInWorld.z -= (e.movementX * a.vecx.z + e.movementY * a.vecy.z);
+      }
+      showImage(i);
+    });
   }
 
   if (leftButtonFunction.value == "roi") {
@@ -307,6 +308,30 @@ const wheel = (e: WheelEvent) => {
     const change = e.deltaY > 0 ? 1 : -1;
     changeSlice(id, change);
     showImage(id);
+  });
+};
+
+const wheel_ctrl = (e: WheelEvent) => {
+
+  const id = getIdOfEventOccured(e);
+  const info = getDicomImageBoxInfo;
+  const infoV = getVolumeImageBoxInfo;
+
+  doOneOrAll(id, (i:number) => {
+    if (isDicomImageBoxInfo(id)){
+      let r = 1.1;
+      if (e.deltaY > 0) r = 1 / r;
+      const zoom = info(i).zoom ?? 1;
+      info(i).zoom = zoom * r;
+      showImage(i);
+    }else{
+      let r = 1.1;
+      if (e.deltaY < 0) r = 1 / r;
+      const a = infoV(i);
+      a.vecx.multiplyScalar(r);
+      a.vecy.multiplyScalar(r);
+      showImage(i);
+    }
   });
 };
 
@@ -895,7 +920,9 @@ const maximize = () => {
         <v-row no-gutters id="hello">
           <v-col cols="auto" v-for="i in tileN" >
             <imagebox :class="{'cursor-grab': leftButtonFunction==='pan'}" ref="imb" :imageBoxId="i-1"
-             :width="imageBoxW" :height="imageBoxH" @wheel.prevent="wheel"
+             :width="imageBoxW" :height="imageBoxH"
+              @wheel.exact.prevent="wheel"
+              @wheel.ctrl.exact.prevent="wheel_ctrl"
               @click="imageBoxClicked" @mousemove="mouseMove"
               @dragenter="dragEnter" @dragleave="dragLeave" @dropover.prevent @drop.prevent="dropFile"
               :isEnter="isEnter" :selected="i-1 === selectedImageBoxId">

@@ -6,9 +6,15 @@
           <v-app-bar-nav-icon @click.stop="drawer = !drawer" variant="text"></v-app-bar-nav-icon>
         </template>
         <!-- <div> -->
-          <h1 class="d-inline mr-10" style="font-family: 'Gill Sans', 'Gill Sans MT', Calibri, 'Trebuchet MS', sans-serif">
+          <!-- <h1 class="d-inline mr-10" style="font-family: 'Gill Sans', 'Gill Sans MT', Calibri, 'Trebuchet MS', sans-serif">
             Metavol
-          </h1>
+          </h1> -->
+
+          <v-img
+        class="mb-4"
+        height="150"
+        src="@/assets/metavol_logo.svg"
+      />
 
           <!-- <v-checkbox>Hello</v-checkbox> -->
           <v-switch class="d-inline mr-5" label="Synchronize" base-color="brown-darken-2" color="orange-lighten-1" v-model="syncImageBox" style="padding-top: 18px;"></v-switch>
@@ -31,7 +37,7 @@
                 <v-tooltip activator="parent" location="bottom">Page</v-tooltip>
               </v-btn>
               <v-btn value="roi">
-                <v-icon icon="mdi-arrow-up-down"></v-icon>
+                <v-icon icon="mdi-circle-outline"></v-icon>
                 <v-tooltip activator="parent" location="bottom">ROI</v-tooltip>
               </v-btn>
              </v-btn-toggle>
