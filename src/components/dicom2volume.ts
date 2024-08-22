@@ -12,7 +12,6 @@ interface MyDataSet extends DataSet {
 
 export const generateVolumeFromDicom = (dcmList: MyDataSet[]) => {
 
-
     let suvFactor = 1;
     try{
         suvFactor = getSuvFactor(dcmList) ?? 1;
@@ -144,31 +143,44 @@ const parseSecond6digits = (str:string) => {
 }
 
 const getCorrectedDosage = (dd: MyDataSet[]) => {
-    const d = dd[0];
+    const d0 = dd[0];
 
-    let hl = d.floatString("x00181075"); // half life
+    let hl = d0.floatString("x00181075"); // half life
     if (hl == null){
-        hl = d.elements.x00540016.items![0].dataSet!.floatString("x00181075") // ネスト
+        hl = d0.elements.x00540016.items![0].dataSet!.floatString("x00181075") // ネスト
     }
     log.push("half life "+hl);
 
-    const dc = d.string("x00541102"); // decay correction
-    let dosage = d.floatString("x00181074"); // radionuclide total dose
+    const dc = d0.string("x00541102"); // decay correction
+    let dosage = d0.floatString("x00181074"); // radionuclide total dose
     if (dosage == null){
-        dosage = d.elements.x00540016.items![0].dataSet!.floatString("x00181074") // ネスト
+        dosage = d0.elements.x00540016.items![0].dataSet!.floatString("x00181074") // ネスト
     }
     log.push("dosage (uncorrected) "+dosage);
 
     if (dc!.startsWith("START")){
 
-        //2024/5/13 本来はすべてのDICOMファイルのscanstarttimeを調べてearliestのものを採択すべきである
-        const scanstarttime_ = d.string("x00080032");
-        log.push("scanstarttime "+scanstarttime_);
-        const scanstarttime = parseSecond6digits(scanstarttime_!); // acuisition time
+        //すべてのDICOMファイルのscanstarttimeを調べてearliestのものを採択する
+        let scanstarttime_earliest = "99999999999999999";
+        for (let d of dd){
+            const t = d.string("x00080032");
+            if (t == undefined){
+                continue;
+            }
+            if (t < scanstarttime_earliest){
+                scanstarttime_earliest = t;
+            }
+        }
+        // const scanstarttime_ = d0.string("x00080032");
+        // log.push("scanstarttime "+scanstarttime_);
+        // const scanstarttime = parseSecond6digits(scanstarttime_!); // acuisition time
+        log.push("scanstarttime "+scanstarttime_earliest);
+        const scanstarttime = parseSecond6digits(scanstarttime_earliest); // acuisition time
 
-        let dosestarttime_ = d.string("x00181072"); // Radiopharmaceutical Start Time
+
+        let dosestarttime_ = d0.string("x00181072"); // Radiopharmaceutical Start Time
         if (dosestarttime_ == null){
-            dosestarttime_ = d.elements.x00540016.items![0].dataSet!.string("x00181072") // ネスト
+            dosestarttime_ = d0.elements.x00540016.items![0].dataSet!.string("x00181072") // ネスト
         }
         log.push("dosestarttime "+dosestarttime_);
         const dosestarttime = parseSecond6digits(dosestarttime_!)

@@ -21,7 +21,7 @@ export const getTileN = () => {
     let n = Math.floor(Number(n_str));
     
     if (n<1 || n> 20){
-        n = 2;
+        n = 4;
     }
     return n;
     }

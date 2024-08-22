@@ -22,8 +22,10 @@ const emit = defineEmits([
   "phantom1",
   "phantom2",
   "phantom3",
+  "phantom4",
   "fusion",
   "maximize",
+  "showDetails"
 ]);
 
 // const leftButtonFunction = ref('none');
@@ -46,6 +48,8 @@ const changeSlice = (e:number) => emit("changeSlice", e);
 const showUnderConstruction = ref(false);
 const showSummary = ref(false);
 const showTag = ref(false);
+// const showDetails = ref(true);
+const showDetails = defineModel<boolean>("showDetails");
 
 </script>
 
@@ -90,6 +94,7 @@ const showTag = ref(false);
       <h3>3D</h3>
     </v-row>
     <v-row>
+      <v-btn @click="emit('fusion')">Fusion</v-btn>
       <v-btn @click="emit('mpr')">MPR</v-btn>
       <v-btn @click="emit('axi')">Axi</v-btn>
       <v-btn @click="emit('cor')">Cor</v-btn>
@@ -110,6 +115,7 @@ const showTag = ref(false);
       <h3>Demo</h3>
     </v-row>
     <v-row>
+      <v-btn @click="emit('phantom4')">Point</v-btn>
       <v-btn @click="emit('phantom3')">Earth</v-btn>
       <v-btn @click="emit('phantom1')">Humanoid</v-btn>
       <v-btn @click="emit('phantom2')">Voronoi</v-btn>
@@ -119,10 +125,10 @@ const showTag = ref(false);
       <v-checkbox label="Under construction" v-model="showUnderConstruction"></v-checkbox>
     </v-row>
     <v-row v-if="showUnderConstruction">
-      <v-btn @click="emit('fusion')">Fusion</v-btn>
       <v-btn @click="emit('maximize')">Maximize</v-btn>
       <v-switch label="Show summary" v-model="showSummary" style="padding-top: 36px;" hide-details></v-switch>
       <v-switch label="Show tag" v-model="showTag" hide-details></v-switch>
+      <v-switch label="show details" v-model="showDetails" hide-details></v-switch>
     </v-row>
 
   </v-container>

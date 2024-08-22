@@ -105,6 +105,7 @@ const drawImageCvDirect = async function(pix: Float32Array | Int16Array, wc:numb
 const drawNiftiSlice = async function(pix: Float32Array | Int16Array,
     nx:number, ny:number, nz:number, wc:number, ww:number,
     p00:THREE.Vector3, v01:THREE.Vector3,v10:THREE.Vector3, clut: number[][],
+    showVoi: boolean, voiPosFromScreenCenterX: number, voiPosFromScreenCenterY: number, voiRadius: number
   ) {
 
   if (cv1.value === null || ctx === null) return;
@@ -138,11 +139,13 @@ const drawNiftiSlice = async function(pix: Float32Array | Int16Array,
 
   ctx.putImageData(myImageData, 0,0,0,0,canvasx, canvasy);
 
-  ctx.beginPath(); // パスの初期化
-  ctx.arc(100, 50, 30, 0, 2 * Math.PI); // (100, 50)の位置に半径30pxの円
-  ctx.closePath(); // パスを閉じる
-  ctx.strokeStyle = "red";
-  ctx.stroke(); // 軌跡の範囲を塗りつぶす
+  if (showVoi){
+    ctx.beginPath(); // パスの初期化
+    ctx.arc(voiPosFromScreenCenterX + canvasx/2, voiPosFromScreenCenterY + canvasy/2, voiRadius, 0, 2 * Math.PI); // (100, 50)の位置に半径30pxの円
+    ctx.closePath(); // パスを閉じる
+    ctx.strokeStyle = "red";
+    ctx.stroke(); // 軌跡の範囲を塗りつぶす
+  }
 
 
   // new THREE.Sphere(THREE.Vector3(100,50,))

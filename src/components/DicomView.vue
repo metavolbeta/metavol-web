@@ -1,6 +1,9 @@
 <script setup lang="ts">
 
-//6/29 今後付け加える機能
+//8/20 今後付け加える機能
+// voi toolはctrlでzero fillするのではなく別ボタン
+// voiの位置をとるのに暫定的に#0を使っているためfusionでの挙動が変
+// 3メーカー、4ブラウザーに対応していることを言いたい
 // ROIツール ROIツールへの切り替えのボタン、球体の表示、値の抽出、テスト用の画像書き換え
 // 
 // fusion -> プロトタイプ完成 -> 機能性を高める
@@ -19,6 +22,8 @@
 // 上記と合わせて、学生用にpixel mappingやマウス下のCT値を表示するシステム
 //
 //
+// fusion buttonをunder constructionから昇格 -> done
+// CTとPETが入れ替わった状態でfusionだめ -> partly done だが根本的にはもっと賢くしないと
 // ctrl + wheelで拡大縮小 -> done
 // center button でpan -> done
 // デフォルトでsync off -> done
@@ -36,6 +41,8 @@
 //
 // PNGを読み込めるように->→ボツ->かわりにPNGをDICOM変換して対応した -> done
 // 描画時間を測定する機能　いろいろなPCでのパフォーマンスを比較したい -> done
+// scanstarttimeをearliestのものを使うことで正しいSUVを計算 -> done
+// MIP/sMIP, fusion?したあとに縦横比がかわるバグ -> done
 //
 
 
@@ -49,12 +56,18 @@ import { ImageBoxInfoBase, DicomImageBoxInfo, VolumeImageBoxInfo, defaultInfo, p
 import { getAllFilesRecursive } from "./DragAndDropUtil";
 import { generateVolumeFromDicom } from './dicom2volume.ts';
 import * as DecompressJpegLossless from "./decompressJpegLossless";
-import { Volume, voxelToWorld, worldToVoxel } from "./Volume.ts";
+import { fillVoxels, getMax, getVoxels, Volume, voxelToWorld, worldToVoxel } from "./Volume.ts";
 import * as THREE from 'three';
 import {cluts} from './Clut.ts';
 import * as nifti from 'nifti-reader-js';
 import * as Phantom from './phantom.ts';
+import { Sphere } from "three";
+import { solve } from './linalg'
 
+const maxOfVoi = ref(0);
+const vois: THREE.Sphere[] = [];
+// const voiPosition = ref<THREE.Vector3 | null>();
+// const voiPosition = ref<THREE.Vector2 | null>();
 const showPerformance = ref("");
 const benchmarkMessage = ref("");
 const closingImages = defineModel<boolean>("closingImages");
@@ -109,6 +122,8 @@ const showSummary = ref(false);
 const showTag = ref(false);
 const summaryText = ref('');
 const tagText = ref('');
+const showDetails123 = ref(false);
+const detailsText = ref({});
 
 const imb = ref<InstanceType<typeof imagebox>[]>();
 
@@ -211,6 +226,10 @@ const doOneOrAll = (id: number, action: (i:number) => void ) => {
   }
 }
 
+const mouseDown = (e: MouseEvent) => {
+  mouseMove(e);
+}
+
 const mouseMove = (e: MouseEvent) => {
   const id = getIdOfEventOccured(e);
   const info = getDicomImageBoxInfo;
@@ -279,21 +298,39 @@ const mouseMove = (e: MouseEvent) => {
   }
 
   if (leftButtonFunction.value == "roi") {
-    if (e.buttons == 1) {
 
-      const p = screenToWorld(0, e.offsetX, e.offsetY);
-      const q = worldToVoxel_(p,0);
+    const p = screenToWorld(0, e.offsetX, e.offsetY);
+    const q = worldToVoxel_(p,0);
 
-      debugger;
+    if (e.buttons == 1){
 
+      // const roi2d = new THREE.Vector2(e.offsetX, e.offsetY);
+      const voiPos = screenToWorld(id, e.offsetX, e.offsetY);
+      const r = 30; // unit: mm
+
+      vois[0] = new THREE.Sphere(voiPos, r);
+
+      const v = seriesList[0].volume!;
+      // const rx = screenToWorld(0,1,0).sub(screenToWorld(0,0,0)).multiplyScalar(r);
+      // const voxels = getVoxels(new Sphere(p, rx.x), v)
+      const voxels = getVoxels(new Sphere(p, r), v)
+
+      maxOfVoi.value = getMax(voxels, v);
+
+      if (e.ctrlKey){
+        fillVoxels(voxels, 0, v);
+      }
+      
+      show();
+    }
+
+    if (e.buttons == 2) {
       const x0 = Math.floor(q.x);
       const y0 = Math.floor(q.y);
       const z0 = Math.floor(q.z);
       const v = seriesList[0].volume!;
       v.voxel[x0+y0*v.nx+z0*v.nx*v.ny] = 0;
-
-      showImage(0);
-
+      show();
     }
 
   }
@@ -591,7 +628,24 @@ const showImage = (i:number) => {
     const clut = cluts[info.clut];
 
     if (!info.isMip){
-        imb.value![i].drawNiftiSlice(pixelData0,nx,ny,nz, wc!, ww!, p00,v01,v10,clut);
+      if (leftButtonFunction.value == "roi"){
+
+        const pointOnScreen = worldToScreen(i, vois[0].center);
+
+        const a = imageBoxInfos.value[i] as VolumeImageBoxInfo;
+        const a_len = a.vecx.length();
+        const R = vois[0].radius;
+        const z = pointOnScreen.z;
+
+
+        const radius = Math.sqrt(R*R-z*z) / a_len;
+
+        imb.value![i].drawNiftiSlice(pixelData0,nx,ny,nz, wc!, ww!,
+         p00,v01,v10,clut, true, pointOnScreen.x, pointOnScreen.y, radius);
+      }else{
+        imb.value![i].drawNiftiSlice(pixelData0,nx,ny,nz, wc!, ww!,
+         p00,v01,v10,clut, false, 0, 0, 0);
+      }
       }else{
       const angle = info.mip!.mipAngle;
       imb.value![i].drawNiftiMip(pixelData0,nx,ny,nz, wc!, ww!, p00,v01,v10,
@@ -643,13 +697,35 @@ const showImage = (i:number) => {
 
 };
 
-const screenToWorld = (imageBoxNumber: number, x: number, y:number) => {
+const screenToWorld = (imageBoxNumber: number, x: number, y:number):THREE.Vector3 => {
   // 今はVolumeのときしか対応していないが、理論的にはDicomにも対応できる。
   const world = new THREE.Vector3(0,0,0);
   const a = imageBoxInfos.value[imageBoxNumber] as VolumeImageBoxInfo;
   world.add(a.centerInWorld).addScaledVector(a.vecx,x-imageBoxW.value!/2).addScaledVector(a.vecy,y-imageBoxH.value!/2);
   return world;
 }
+
+const worldToScreen = (imageBoxNumber: number, p: THREE.Vector3):THREE.Vector3 => {
+  const a = imageBoxInfos.value[imageBoxNumber] as VolumeImageBoxInfo;
+  const Z = a.vecz.clone().normalize();
+  const right = [p.x - a.centerInWorld.x, p.y- a.centerInWorld.y, p.z - a.centerInWorld.z];
+  // const left = [[a.vecx.x, a.vecy.x, a.vecz.x],[a.vecx.y, a.vecy.y, a.vecz.y],[a.vecx.z, a.vecy.z, a.vecz.z]];
+  const left = [[a.vecx.x, a.vecy.x, Z.x],[a.vecx.y, a.vecy.y, Z.y],[a.vecx.z, a.vecy.z, Z.z]];
+  const ans = solve(left, right)
+  return new THREE.Vector3(ans[0],ans[1],ans[2]);
+}
+
+// export const worldToVoxel = (p: THREE.Vector3, v: Volume) => {
+//     const right = [p.x - v.imagePosition.x, p.y- v.imagePosition.y, p.z - v.imagePosition.z];
+//     const left = [[v.vectorX.x,v.vectorX.y,v.vectorX.z],
+//      [v.vectorY.x,v.vectorY.y, v.vectorY.z, ],
+//      [v.vectorZ.x,v.vectorZ.y, v.vectorZ.z, ]];
+//     const ans = solve(left, right)
+//     return new THREE.Vector3(ans[0],ans[1],ans[2]);
+// }
+
+
+
 
 const voxelToWorld_ = (p: THREE.Vector3, vol_id:number) => {
   const v = seriesList[vol_id].volume!;
@@ -670,20 +746,20 @@ const changeSuv = (a:number,b:number, doShow: boolean) => {
   }
 }
 
-const mpr_ = (i: number) => {
-  const d = generateVolumeFromDicom(seriesList[i].myDicom!);
-  seriesList[i].volume = d;
+const mpr_ = (seriesNumber: number) => {
+  const d = generateVolumeFromDicom(seriesList[seriesNumber].myDicom!);
+  seriesList[seriesNumber].volume = d;
 
-  const p0 = voxelToWorld_(new THREE.Vector3(0,0,0),i);
-  const p1 = voxelToWorld_(new THREE.Vector3(d.nx,d.ny, d.nz),i);
+  const p0 = voxelToWorld_(new THREE.Vector3(0,0,0),seriesNumber);
+  const p1 = voxelToWorld_(new THREE.Vector3(d.nx,d.ny, d.nz),seriesNumber);
   p0.add(p1).divideScalar(2); // 中点
 
-  imageBoxInfos.value[i] = {
+  imageBoxInfos.value[seriesNumber] = {
     clut: 0,
     myWC: 3,
     myWW: 6,
     description: "metavol generated",
-    currentSeriesNumber: i,
+    currentSeriesNumber: seriesNumber,
     centerInWorld: p0,
     vecx: d.vectorX.clone(),
     vecy: d.vectorY.clone(),
@@ -694,28 +770,43 @@ const mpr_ = (i: number) => {
 
 }
 
-
 const mpr = (doShow: boolean) => {
-
   const i = imageBoxInfos.value[selectedImageBoxId.value].currentSeriesNumber;
   mpr_(i);
   if (doShow){
     show();
   }
+}
 
+const getModality = (seriesNumber: number): string => {
+  let modalities: string[] = [];
+  for (const d of seriesList[seriesNumber].myDicom!){
+    const m = d.string("x00080060", 0);
+    if (!modalities.includes(m!)){
+      modalities.push(m!);
+    }
+  }
+  return modalities.join("");
 }
 
 const fusion = () => {
 
+  // 8/20 どろくさいやり方なので、もっとエレガントに
+  if (getModality(0)=="CT" && getModality(1)=="PT"){
+    const temp = seriesList[0];
+    seriesList[0] = seriesList[1];
+    seriesList[1] = temp;
+  }
   mpr_(0);
   mpr_(1);
+
   const info = (imageBoxInfos.value[1] as VolumeImageBoxInfo) as VolumeImageBoxInfo;
 
   imageBoxInfos.value![0] = {
-    centerInWorld: info.centerInWorld,
-    vecx: info.vecx,
-    vecy: info.vecy,
-    vecz: info.vecz,
+    centerInWorld: info.centerInWorld.clone(),
+    vecx: info.vecx.clone(),
+    vecy: info.vecy.clone(),
+    vecz: info.vecz.clone(),
     clut: 2, // white-black
     clut1: 0, // rainbow
     currentSeriesNumber: 0,
@@ -726,6 +817,42 @@ const fusion = () => {
     myWC1: 40,
     myWW1: 340,
   } as FusedVolumeImageBoxInfo;
+
+  imageBoxInfos.value![1] = {
+    centerInWorld: info.centerInWorld.clone(),
+    vecx: info.vecx.clone(),
+    vecy: info.vecy.clone(),
+    vecz: info.vecz.clone(),
+    clut: 0,
+    currentSeriesNumber: 1,
+    description: "ct",
+    myWC: 40,
+    myWW: 340,
+  } as VolumeImageBoxInfo;
+
+  imageBoxInfos.value![2] = {
+    centerInWorld: info.centerInWorld.clone(),
+    vecx: info.vecx.clone(),
+    vecy: info.vecy.clone(),
+    vecz: info.vecz.clone(),
+    clut: 1,
+    currentSeriesNumber: 0,
+    description: "pet",
+    myWC: 3,
+    myWW: 6,
+  } as VolumeImageBoxInfo;
+
+  imageBoxInfos.value![3] = {
+    centerInWorld: info.centerInWorld.clone(),
+    vecx: info.vecx.clone(),
+    vecy: info.vecy.clone(),
+    vecz: info.vecz.clone(),
+    clut: 1,
+    currentSeriesNumber: 0,
+    description: "pet",
+    myWC: 3,
+    myWW: 6,
+  } as VolumeImageBoxInfo;
 
   show();
 
@@ -866,6 +993,13 @@ const phantom3 = () => {
   imageBoxInfos.value[selectedImageBoxId.value] = c;
   switchToSMip(true);
 }
+const phantom4 = () => {
+  const P = Phantom.generatePhantom4();
+  const c = pushVolume(seriesList, P);
+  imageBoxInfos.value[selectedImageBoxId.value] = c;
+  show();
+}
+
 
 const runDebugger = () => {
   console.log(innerWidth);
@@ -873,10 +1007,45 @@ const runDebugger = () => {
 
 const maximize = () => {
   const hello = document.getElementById("hello");
-  debugger;
   imageBoxW.value=hello!.scrollWidth! / 2 - 10;
 }
 
+const generateDetailsText = () => {
+
+  let J  = {"imageBoxInfo":imageBoxInfos, "series":{}};
+
+  for (let i=0; i<seriesList.length; i++){
+
+    if (seriesList[i].myDicom != null){
+      const d = seriesList[i].myDicom![0]!;
+      const mo = d.string("x00080060", 0);
+      const n = seriesList[i].myDicom!.length;
+
+
+      debugger;
+
+      // J["series"][i] = 
+      // {"dicom":
+      //   {"modality": mo,"numberOfSlice": n}
+      // };
+      J["series"][i] = 
+      {"dicom":
+        {"modality": mo,"numberOfSlice": n}
+      };
+    }
+
+    if (seriesList[i].volume != null){
+      J["series"][i]["volume"] = 
+        {"nx": seriesList[i].volume!.nx,
+         "ny": seriesList[i].volume!.ny,
+         "nz": seriesList[i].volume!.nz,
+        }
+    }
+  }
+
+  return JSON.stringify(J , null, "\t")
+
+}
 
 
 </script>
@@ -905,9 +1074,11 @@ const maximize = () => {
             @phantom1="phantom1"
             @phantom2="phantom2"
             @phantom3="phantom3"
+            @phantom4="phantom4"
             @fusion="fusion"
             @maximize="maximize"
             :benchmark = "benchmarkMessage"
+            v-model:showDetails = "showDetails123"
           ></sidebar>
           <v-checkbox label="Performance" v-model="showPerformance"></v-checkbox>
           <p v-if="showPerformance">{{ benchmarkMessage }}</p>
@@ -919,16 +1090,29 @@ const maximize = () => {
       <v-col>
         <v-row no-gutters id="hello">
           <v-col cols="auto" v-for="i in tileN" >
-            <imagebox :class="{'cursor-grab': leftButtonFunction==='pan'}" ref="imb" :imageBoxId="i-1"
-             :width="imageBoxW" :height="imageBoxH"
+            <imagebox
+             :class="{'cursor-grab': leftButtonFunction==='pan'}"
+              ref="imb" :imageBoxId="i-1"
+              :width="imageBoxW"
+              :height="imageBoxH"
               @wheel.exact.prevent="wheel"
               @wheel.ctrl.exact.prevent="wheel_ctrl"
-              @click="imageBoxClicked" @mousemove="mouseMove"
-              @dragenter="dragEnter" @dragleave="dragLeave" @dropover.prevent @drop.prevent="dropFile"
+              @click="imageBoxClicked"
+              @mousedown="mouseDown"
+              @mousemove="mouseMove"
+              @dragenter="dragEnter"
+              @dragleave="dragLeave"
+              @dropover.prevent
+              @drop.prevent="dropFile"
               :isEnter="isEnter" :selected="i-1 === selectedImageBoxId">
             </imagebox>
           </v-col>
         </v-row>
+
+        <v-row>
+          <h4>SUVmax {{ maxOfVoi }}</h4>
+        </v-row>
+
 
         <v-row>
           <textarea v-if="showSummary" v-model="summaryText" style="height: auto;" />
@@ -936,6 +1120,17 @@ const maximize = () => {
 
         <v-row>
           <textarea v-if="showTag" v-model="tagText" style="height: 400px;" />
+        </v-row>
+
+        <v-row v-if="showDetails123">
+          <v-column>
+            <v-btn @click="updateDetails">Update details</v-btn>
+          </v-column>
+          <v-column>
+            <pre>
+            {{ generateDetailsText() }}
+            </pre>
+          </v-column>
         </v-row>
 
       </v-col>

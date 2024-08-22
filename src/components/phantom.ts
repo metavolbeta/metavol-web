@@ -176,3 +176,38 @@ export const generatePhantom3 = () => {
   return volume;
 }
 
+
+
+export const generatePhantom4 = () => {
+
+  const [nx,ny,nz] = [100,100,100];
+  let voxel = new Float32Array(nx*ny*nz);
+
+  const sphere = (x,y,z,px,py,pz,r2) => 1/(((x-px)*(x-px) + (y-py)*(y-py) + (z-pz)*(z-pz))/r2+0.000001);
+  for (let z=0; z<nz; z++){
+    for (let y=0; y<ny; y++){
+      for (let x=0; x<nx; x++){
+
+        let a = sphere(x,y,z,50,50,50,10*10) // 体上
+        voxel[z*nx*ny+y*nx+x] = a;
+
+      }
+    }
+  }
+
+  voxel[50*nx*ny+10*nx+50] = 100;
+
+
+  const volume = {
+    voxel,
+    nx,
+    ny,
+    nz,
+    imagePosition: new THREE.Vector3(0,0,0),
+    vectorX: new THREE.Vector3(5,0,0),
+    vectorY: new THREE.Vector3(0,5,0),
+    vectorZ: new THREE.Vector3(0,0,5),
+  };
+
+  return volume;
+}
