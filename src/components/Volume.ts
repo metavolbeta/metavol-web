@@ -68,23 +68,13 @@ export const getVoxels = (spInWorld: THREE.Sphere, v: Volume) => {
         }
     }
 
-
-    // voxels.push(1);
-    // voxels.push(12);
-    // voxels.push(123);
-
     return voxels;
-
 }
 
 export const fillVoxels = (voxels: THREE.Vector3[], fillValue: number, v: Volume ) => {
-
     for (const a of voxels){
-
-        v.voxel[a.x+a.y*v.nx+a.z*v.nx*v.ny] = 0;
-
+        v.voxel[a.x+a.y*v.nx+a.z*v.nx*v.ny] = fillValue;
     }
-
 }
 
 export const getMax = (voxels: THREE.Vector3[], v: Volume ) : number => {
@@ -95,10 +85,7 @@ export const getMax = (voxels: THREE.Vector3[], v: Volume ) : number => {
         if (max < k){
             max = k
         }
-
     }
-
     return max;
 }
-
   

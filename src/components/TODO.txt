@@ -1,0 +1,54 @@
+9/4 今後付け加える機能
+
+そもそもMetavol-webがどんな用途で使われることを想定しているのか明らかにしていない
+・急いでいるときに、さっとDICOMを開ける
+・症例検討会で使う、PSPやRadiAntの機能限定版のようなもの
+・簡単教師ラベル（マスク）作成
+
+fusion画面でVOIが出てこない
+3メーカー、4ブラウザーに対応していることを言いたい
+ROIツール ROIツールへの切り替えのボタン、球体の表示、値の抽出、テスト用の画像書き換え
+
+fusion -> プロトタイプ完成 -> 機能性を高める
+bilinear interpolation
+シリーズ切り替えコンボボックス
+DicomView.vueが肥大化しているので他ファイルに分散
+niftiが読めない
+Nrrdも
+1つでもエラーの出るファイルがあると開けない
+上下さかさま　spinal tumor
+できれば位置合わせ　ブラウザ上で果たして出来るか
+断面指示線
+DICOMの情報表示ボタン
+
+優先順位は低い
+Windowを説明するためのグラデーションデモ
+上記と合わせて、学生用にpixel mappingやマウス下のCT値を表示するシステム
+
+
+voiの位置をとるのに暫定的に#0を使っているためfusionでの挙動が変 -> たぶん解決 9/4
+voi toolはctrlでzero fillするのではなく別ボタン、しかもvolとvalueを与えられるようにした -> done 9/4
+GE color -> done 9/4
+fusion buttonをunder constructionから昇格 -> done
+CTとPETが入れ替わった状態でfusionだめ -> partly done だが根本的にはもっと賢くしないと
+ctrl + wheelで拡大縮小 -> done
+center button でpan -> done
+デフォルトでsync off -> done
+MIP/surfaceMIP -> done
+Niftiの読み込み -> done
+rainbowCLUTが遅い -> done
+phantomボタン -> done
+pagingボタン、シリーズ切り替えボタン -> done
+2Dの表示、右上に -> done
+スライス←→ボタンがsyncに対応していない -> done
+画像をクローズするボタン -> done
+画像をもっと大きくしたいので、サイドバーを隠したり画像サイズをレスポンシブに -> done
+backup用の別URL -> done
+ここまでを常田先生の講義(2024/6/27)に間に合わせた
+
+PNGを読み込めるように->→ボツ->かわりにPNGをDICOM変換して対応した -> done
+描画時間を測定する機能　いろいろなPCでのパフォーマンスを比較したい -> done
+scanstarttimeをearliestのものを使うことで正しいSUVを計算 -> done
+MIP/sMIP, fusion?したあとに縦横比がかわるバグ -> done
+
+

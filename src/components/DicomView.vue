@@ -1,52 +1,5 @@
 <script setup lang="ts">
 
-//8/20 今後付け加える機能
-// voi toolはctrlでzero fillするのではなく別ボタン
-// voiの位置をとるのに暫定的に#0を使っているためfusionでの挙動が変
-// 3メーカー、4ブラウザーに対応していることを言いたい
-// ROIツール ROIツールへの切り替えのボタン、球体の表示、値の抽出、テスト用の画像書き換え
-// 
-// fusion -> プロトタイプ完成 -> 機能性を高める
-// bilinear interpolation
-// シリーズ切り替えコンボボックス
-// DicomView.vueが肥大化しているので他ファイルに分散
-// Nrrdも
-// 1つでもエラーの出るファイルがあると開けない
-// 上下さかさま　spinal tumor
-// できれば位置合わせ　ブラウザ上で果たして出来るか
-// 断面指示線
-// DICOMの情報表示ボタン
-//
-// 優先順位は低い
-// Windowを説明するためのグラデーションデモ
-// 上記と合わせて、学生用にpixel mappingやマウス下のCT値を表示するシステム
-//
-//
-// fusion buttonをunder constructionから昇格 -> done
-// CTとPETが入れ替わった状態でfusionだめ -> partly done だが根本的にはもっと賢くしないと
-// ctrl + wheelで拡大縮小 -> done
-// center button でpan -> done
-// デフォルトでsync off -> done
-// MIP/surfaceMIP -> done
-// Niftiの読み込み -> done
-// rainbowCLUTが遅い -> done
-// phantomボタン -> done
-// pagingボタン、シリーズ切り替えボタン -> done
-// 2Dの表示、右上に -> done
-// スライス←→ボタンがsyncに対応していない -> done
-// 画像をクローズするボタン -> done
-// 画像をもっと大きくしたいので、サイドバーを隠したり画像サイズをレスポンシブに -> done
-// backup用の別URL -> done
-// ここまでを常田先生の講義(2024/6/27)に間に合わせた
-//
-// PNGを読み込めるように->→ボツ->かわりにPNGをDICOM変換して対応した -> done
-// 描画時間を測定する機能　いろいろなPCでのパフォーマンスを比較したい -> done
-// scanstarttimeをearliestのものを使うことで正しいSUVを計算 -> done
-// MIP/sMIP, fusion?したあとに縦横比がかわるバグ -> done
-//
-
-
-
 import { ref, watch } from "vue";
 import { DataSet, parseDicom } from "dicom-parser";
 import * as DicomLib from './dicomLib.ts';
@@ -66,8 +19,6 @@ import { solve } from './linalg'
 
 const maxOfVoi = ref(0);
 const vois: THREE.Sphere[] = [];
-// const voiPosition = ref<THREE.Vector3 | null>();
-// const voiPosition = ref<THREE.Vector2 | null>();
 const showPerformance = ref("");
 const benchmarkMessage = ref("");
 const closingImages = defineModel<boolean>("closingImages");
@@ -117,17 +68,15 @@ let bagOfFiles: (MyDicom | Nii | OtherFile)[];
 const selectedImageBoxId = ref(0);
 const isLoading = ref(false);
 const isEnter = ref(false);
-
 const showSummary = ref(false);
 const showTag = ref(false);
 const summaryText = ref('');
 const tagText = ref('');
 const showDetails123 = ref(false);
 const detailsText = ref({});
-
 const imb = ref<InstanceType<typeof imagebox>[]>();
 
-interface SeriesList { // 複数のDICOMファイル、もしくはVolumeデータ、もしくは両方（同一画像）、、ということはnx,ny,nzを共有するという案もあるが・・
+interface SeriesList { // 複数のDICOMファイル、もしくはVolumeデータ、もしくは両方（同一画像）、もしくはどちらもnull、、、ということはnx,ny,nzを共有するという案もあるが・・
   myDicom: MyDicom[] | null,
   volume: Volume | null,
 }
@@ -146,12 +95,12 @@ const isVolumeImageBoxInfo = (i:number) => {
 const getSelectedInfo = () => getVolumeImageBoxInfo(selectedImageBoxId.value);
 
 type LeftButtonFunction = "window" | "pan" | "zoom" | "page" | "roi";
-// const leftButtonFunction = ref<LeftButtonFunction>("none");
-const leftButtonFunctionChanged = (e: LeftButtonFunction) => {
-  leftButtonFunction.value = e;
-};
+// const leftButtonFunctionChanged = (e: LeftButtonFunction) => {
+//   leftButtonFunction.value = e;
+// };
 
 const initializeDicomListsImagesBoxInfos = () => {
+  // defaultInfo(0)から(7)まで入れるのは過剰なので、必要数だけ与える
   bagOfFiles = [];
   seriesList = [];
   imageBoxInfos.value = [defaultInfo(0), defaultInfo(1), defaultInfo(2), defaultInfo(3),defaultInfo(4),defaultInfo(5),defaultInfo(6),defaultInfo(7)];
@@ -299,37 +248,22 @@ const mouseMove = (e: MouseEvent) => {
 
   if (leftButtonFunction.value == "roi") {
 
-    const p = screenToWorld(0, e.offsetX, e.offsetY);
-    const q = worldToVoxel_(p,0);
+    // const p = screenToWorld(0, e.offsetX, e.offsetY);
+    // const q = worldToVoxel_(p,0);
 
     if (e.buttons == 1){
 
-      // const roi2d = new THREE.Vector2(e.offsetX, e.offsetY);
       const voiPos = screenToWorld(id, e.offsetX, e.offsetY);
       const r = 30; // unit: mm
-
       vois[0] = new THREE.Sphere(voiPos, r);
 
       const v = seriesList[0].volume!;
       // const rx = screenToWorld(0,1,0).sub(screenToWorld(0,0,0)).multiplyScalar(r);
       // const voxels = getVoxels(new Sphere(p, rx.x), v)
-      const voxels = getVoxels(new Sphere(p, r), v)
+      const voxels = getVoxels(vois[0], v)
 
       maxOfVoi.value = getMax(voxels, v);
-
-      if (e.ctrlKey){
-        fillVoxels(voxels, 0, v);
-      }
       
-      show();
-    }
-
-    if (e.buttons == 2) {
-      const x0 = Math.floor(q.x);
-      const y0 = Math.floor(q.y);
-      const z0 = Math.floor(q.z);
-      const v = seriesList[0].volume!;
-      v.voxel[x0+y0*v.nx+z0*v.nx*v.ny] = 0;
       show();
     }
 
@@ -377,6 +311,25 @@ const getIdOfEventOccured = (e:MouseEvent | WheelEvent) =>
 
 const imageBoxClicked = (e:MouseEvent) => {
   selectedImageBoxId.value = getIdOfEventOccured(e);
+}
+
+const fillVoi = (volValueText: string) => {
+  let vol = 0;
+  let value = 0;
+  const ss = volValueText.split(' ')
+  for (let i = 0; i< ss.length; i++){
+    if (ss[i]=="vol"){
+      vol = Number(ss[i+1]);
+    }
+    if (ss[i]=="value"){
+      value = Number(ss[i+1]);
+    }
+  }
+
+  const volume = seriesList[vol].volume!;
+  const voxels = getVoxels(vois[0], volume);
+  fillVoxels(voxels, value, volume);
+  show();
 }
 
 const changeSeries = (i:number) => {
@@ -686,15 +639,14 @@ const showImage = (i:number) => {
     const clut1 = cluts[info.clut1];
 
     imb.value![i].drawNiftiSliceFusion(
-      pixelData0, nx0,ny0,nz0, wc0!, ww0!, p00_0,v01_0,v10_0,clut0,
-      pixelData1, nx1,ny1,nz1, wc1!, ww1!, p00_1,v01_1,v10_1,clut1,
+      pixelData0, nx0,ny0,nz0, wc0!, ww0!, p00_0, v01_0, v10_0, clut0,
+      pixelData1, nx1,ny1,nz1, wc1!, ww1!, p00_1, v01_1, v10_1, clut1,
     );
 
   }
 
   const t1 = performance.now();
   benchmarkMessage.value += `${String(t1-t0)}\n`;
-
 };
 
 const screenToWorld = (imageBoxNumber: number, x: number, y:number):THREE.Vector3 => {
@@ -755,7 +707,7 @@ const mpr_ = (seriesNumber: number) => {
   p0.add(p1).divideScalar(2); // 中点
 
   imageBoxInfos.value[seriesNumber] = {
-    clut: 0,
+    clut: "black2white",
     myWC: 3,
     myWW: 6,
     description: "metavol generated",
@@ -807,8 +759,8 @@ const fusion = () => {
     vecx: info.vecx.clone(),
     vecy: info.vecy.clone(),
     vecz: info.vecz.clone(),
-    clut: 2, // white-black
-    clut1: 0, // rainbow
+    clut: "rainbow",
+    clut1: "black2white",
     currentSeriesNumber: 0,
     currentSeriesNumber1: 1,
     description: "fusion",
@@ -823,7 +775,7 @@ const fusion = () => {
     vecx: info.vecx.clone(),
     vecy: info.vecy.clone(),
     vecz: info.vecz.clone(),
-    clut: 0,
+    clut: "black2white",
     currentSeriesNumber: 1,
     description: "ct",
     myWC: 40,
@@ -835,7 +787,7 @@ const fusion = () => {
     vecx: info.vecx.clone(),
     vecy: info.vecy.clone(),
     vecz: info.vecz.clone(),
-    clut: 1,
+    clut: "white2black",
     currentSeriesNumber: 0,
     description: "pet",
     myWC: 3,
@@ -847,7 +799,7 @@ const fusion = () => {
     vecx: info.vecx.clone(),
     vecy: info.vecy.clone(),
     vecz: info.vecz.clone(),
-    clut: 1,
+    clut: "white2black",
     currentSeriesNumber: 0,
     description: "pet",
     myWC: 3,
@@ -914,31 +866,34 @@ const switchToCoronal = (doShow: boolean) => {
 
 const reverse = (doShow: boolean) => {
   const d = getSelectedInfo();
-  if (d.clut == 0) d.clut = 1;
-  else if (d.clut == 1) d.clut = 0;
-  else if (d.clut == 2) d.clut = 3;
-  else if (d.clut == 3) d.clut = 2;
-  else if (d.clut == 4) d.clut = 5;
-  else if (d.clut == 5) d.clut = 4;
+  d.clut = cluts.getReversedName(d.clut);
+
   if (doShow){
     show();
   }
 }
 
 const switchToMonochrome = (doShow: boolean) => { 
-  getSelectedInfo().clut=0;
+  getSelectedInfo().clut="black2white";
   if (doShow){
     show();
   }
 }
 const switchToRainbow = (doShow: boolean) => {
-   getSelectedInfo().clut=2;
+   getSelectedInfo().clut="rainbow";
    if (doShow){
     show();
   }
 }
 const switchToHot = (doShow: boolean) => { 
-  getSelectedInfo().clut=4;
+  getSelectedInfo().clut="hot";
+  if (doShow){
+    show();
+  }
+}
+
+const switchToGe = (doShow: boolean) => { 
+  getSelectedInfo().clut="ge";
   if (doShow){
     show();
   }
@@ -989,7 +944,7 @@ const phantom2 = () => {
 const phantom3 = () => {
   const P = Phantom.generatePhantom3();
   const c = pushVolume(seriesList, P);
-  c.clut=2;
+  c.clut="rainbow";
   imageBoxInfos.value[selectedImageBoxId.value] = c;
   switchToSMip(true);
 }
@@ -1012,7 +967,10 @@ const maximize = () => {
 
 const generateDetailsText = () => {
 
-  let J  = {"imageBoxInfo":imageBoxInfos, "series":{}};
+  let J  = {
+    series: {},
+    mageBoxInfo: imageBoxInfos.value
+  };
 
   for (let i=0; i<seriesList.length; i++){
 
@@ -1021,30 +979,23 @@ const generateDetailsText = () => {
       const mo = d.string("x00080060", 0);
       const n = seriesList[i].myDicom!.length;
 
-
-      debugger;
-
-      // J["series"][i] = 
-      // {"dicom":
-      //   {"modality": mo,"numberOfSlice": n}
-      // };
-      J["series"][i] = 
-      {"dicom":
-        {"modality": mo,"numberOfSlice": n}
+      J["series"][i] = {
+        dicom:
+          {modality: mo,numberOfSlices: n}
       };
     }
 
     if (seriesList[i].volume != null){
       J["series"][i]["volume"] = 
-        {"nx": seriesList[i].volume!.nx,
-         "ny": seriesList[i].volume!.ny,
-         "nz": seriesList[i].volume!.nz,
+        {
+          nx: seriesList[i].volume!.nx,
+          ny: seriesList[i].volume!.ny,
+          nz: seriesList[i].volume!.nz,
         }
     }
   }
 
   return JSON.stringify(J , null, "\t")
-
 }
 
 
@@ -1070,7 +1021,9 @@ const generateDetailsText = () => {
             @monochrome="switchToMonochrome"
             @rainbow="switchToRainbow"
             @hot="switchToHot"
+            @ge="switchToGe"
             @reverse="reverse"
+            @fill="fillVoi"
             @phantom1="phantom1"
             @phantom2="phantom2"
             @phantom3="phantom3"

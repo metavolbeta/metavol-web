@@ -28,7 +28,7 @@ export type VolumeImageBoxInfo = ImageBoxInfoBase & {
     vecx: THREE.Vector3,
     vecy: THREE.Vector3,
     vecz: THREE.Vector3,
-    clut: number,
+    clut: string,
     isMip: boolean,
     mip: {
         mipAngle: number,
@@ -40,7 +40,7 @@ export type VolumeImageBoxInfo = ImageBoxInfoBase & {
 
 export type FusedVolumeImageBoxInfo = VolumeImageBoxInfo & {
     currentSeriesNumber1: number,
-    clut1: number,
+    clut1: string,
     myWC1: number | null,
     myWW1: number | null,
 }
@@ -76,7 +76,7 @@ export const pushVolume = (seriesList: any, volume: any) => {
     p0.add(p1).divideScalar(2); // 中点
 
     const c = {
-        clut: 0,
+        clut: "black2white",
         myWC: 3,
         myWW: 6,
         description: "phantom",

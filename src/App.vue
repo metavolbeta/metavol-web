@@ -16,7 +16,6 @@
         src="@/assets/metavol_logo.svg"
       />
 
-          <!-- <v-checkbox>Hello</v-checkbox> -->
           <v-switch class="d-inline mr-5" label="Synchronize" base-color="brown-darken-2" color="orange-lighten-1" v-model="syncImageBox" style="padding-top: 18px;"></v-switch>
 
           <v-btn-toggle  class="mr-5" v-model="leftButtonFunction" base-color="brown-darken-3" color="brown-darken-2" divided>
@@ -50,12 +49,9 @@
             <v-icon icon="mdi-plus" ></v-icon>
           </v-btn>
 
-
         <template v-slot:append>
           <v-btn class="myBtn" @click="closingImages=true">Close all</v-btn>
         </template>
-
-
           
     <v-menu>
       <template v-slot:activator="{ props }">
@@ -78,7 +74,6 @@
       </v-list>
     </v-menu>
 
-
         <v-app-bar-title  class="text-h4">
         </v-app-bar-title>
 
@@ -90,18 +85,14 @@
         v-model:syncImageBox="syncImageBox" v-model:closingImages="closingImages"
       />
 
-      <!-- <HelloWorld /> -->
-
     </v-main>
   </v-app>
 </template>
 
 <script setup lang="ts">
 import {ref} from 'vue';
-import HelloWorld from './components/HelloWorld.vue'
 import DicomView from "./components/DicomView.vue";
 import { getWH, getTileN } from "./components/UrlParser.ts";
-
 
 const drawer = ref(true);
 const leftButtonFunction = ref(null);

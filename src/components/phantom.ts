@@ -1,7 +1,6 @@
 import { Volume } from "./Volume.ts";
 import * as THREE from 'three';
 
-
 export const generatePhantom = () => {
 
     const [nx,ny,nz] = [100,100,100];

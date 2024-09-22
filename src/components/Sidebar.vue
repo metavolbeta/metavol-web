@@ -18,6 +18,7 @@ const emit = defineEmits([
   "monochrome",
   "rainbow",
   "hot",
+  "ge",
   "reverse",
   "phantom1",
   "phantom2",
@@ -25,11 +26,13 @@ const emit = defineEmits([
   "phantom4",
   "fusion",
   "maximize",
-  "showDetails"
+  "showDetails",
+  "fill"
 ]);
 
 // const leftButtonFunction = ref('none');
 
+const fillVolValueText: any = ref("vol 0 value 0");
 const openFile: any = ref(null);
 const openDir: any = ref(null);
 const openFileClicked = () => {openFile.value.click()}
@@ -87,6 +90,7 @@ const showDetails = defineModel<boolean>("showDetails");
       <v-btn @click="emit('monochrome')">Monochrome</v-btn>
       <v-btn @click="emit('rainbow')">Rainbow</v-btn>
       <v-btn @click="emit('hot')">Hot</v-btn>
+      <v-btn @click="emit('ge')">GE</v-btn>
       <v-btn @click="emit('reverse')">Reverse</v-btn>
     </v-row>
 
@@ -125,6 +129,10 @@ const showDetails = defineModel<boolean>("showDetails");
       <v-checkbox label="Under construction" v-model="showUnderConstruction"></v-checkbox>
     </v-row>
     <v-row v-if="showUnderConstruction">
+
+      <v-btn @click="emit('fill', fillVolValueText)">Fill</v-btn>
+      <textarea v-model="fillVolValueText"></textarea>
+
       <v-btn @click="emit('maximize')">Maximize</v-btn>
       <v-switch label="Show summary" v-model="showSummary" style="padding-top: 36px;" hide-details></v-switch>
       <v-switch label="Show tag" v-model="showTag" hide-details></v-switch>
